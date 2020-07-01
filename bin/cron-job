@@ -11,8 +11,13 @@ digcmd="dig +nocmd +nocomments +nostats"
 
 rm -f ${base}/tmp/*
 
+icann_old_soa=0
 newest_icann=$(ls ${base}/zones/icann* | tail -1)
-icann_old_soa="$(awk '{ if (($1==".")&&($4=="SOA")) { print $7; exit(0) } }' ${newest_icann})"
+if test "${newest_icann}" -a -f "${newest_icann}"
+	then
+		icann_old_soa="$(awk '{ if (($1==".")&&($4=="SOA")) { print $7; exit(0) } }' ${newest_icann})"
+	fi
+
 icann_now_soa="$(${digcmd} +norec +short @${icann_root_dns} . soa | awk '{ print $3 }')"
 
 resign="N"
