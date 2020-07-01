@@ -4,6 +4,9 @@
 # ncpu=$(lscpu | awk '/^CPU\(s\)/ { print $NF }')
 # salt=$(hexdump -n 5 -e '4/4 "%02X" 1 "\n"' /dev/random)
 
+mkdir -p zones archive keys tmp
+chmod 700 keys
+
 rm keys/*
 dnssec-keygen -K keys -a ECDSAP384SHA384 -n ZONE -r /dev/urandom -L 86400 -f KSK -3 .
 dnssec-keygen -K keys -a ECDSAP384SHA384 -n ZONE -r /dev/urandom -L 86400 -3 .
