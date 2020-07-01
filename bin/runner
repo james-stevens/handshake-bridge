@@ -1,0 +1,6 @@
+#! /bin/bash
+
+icann_root_dns="f.root-servers.net."
+base="/opt/handshake-bridge"
+
+. ${base}/bin/cron-job

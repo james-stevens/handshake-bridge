@@ -1,0 +1,48 @@
+#! /bin/bash
+# (c) Copyright 2020 - James Stevens
+
+if test -z "${base}" -o -z "${icann_root_dns}"
+	then
+		echo "ERROR: running config is incomplete"
+		exit 1
+	fi
+
+digcmd="dig +nocmd +nocomments +nostats"
+
+rm -f ${base}/tmp/*
+
+newest_icann=$(ls ${base}/zones/icann* | tail -1)
+icann_old_soa="$(awk '{ if (($1==".")&&($4=="SOA")) { print $7; exit(0) } }' ${newest_icann})"
+icann_now_soa="$(${digcmd} +norec +short @${icann_root_dns} . soa | awk '{ print $3 }')"
+
+resign="N"
+
+now="$(date +%Y%m%d_%H%M%S)"
+
+set -x
+
+if test ${icann_now_soa} -gt ${icann_old_soa}
+	then
+		tmp=$(mktemp ${base}/tmp/icann_XXXXXX)
+		${digcmd} @${icann_root_dns} . axfr | tr $'\t' ' ' | awk 'BEGIN {
+			block["RRSIG"] = "Y"
+			block["NSEC"] = "Y"
+			block["NSEC3"] = "Y"
+			block["DNSKEY"] = "Y"
+			block["NSEC3PARAM"] = "Y"
+			} { if (block[$4] != "Y") print }' > ${tmp}
+
+		if test -z "${newest_icann}" || cmp ${tmp} ${newest_icann}
+			then
+				newest_icann="${base}/zones/icann_${now}.txt"
+				mv ${tmp} ${newest_icann}
+				resign="Y"
+			else
+				rm -f ${tmp}
+				echo "No change to ICANN - ${icann_now_soa}"
+			fi
+	fi
+
+
+ncpu=$(lscpu | awk '/^CPU\(s\)/ { print $NF }')
+salt=$(hexdump -n 5 -e '4/4 "%02X" 1 "\n"' /dev/random | tr -d ' ')
