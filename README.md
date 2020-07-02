@@ -15,6 +15,16 @@ There is a `README` in the `diffs` directory which gives more information.
 
 
 
+## Getting it working
+
+### Prerequisits
+
+- Ensure you have `hsd` running corrrectly
+- Clone this project and go into the project durectory
+-- Edit the file 'config' to meet your needs
+-- Run `./bin/setup`
+
+
 ## ToDo
 
 Desired mods to `hsd` (in order)
@@ -23,3 +33,12 @@ Desired mods to `hsd` (in order)
 if the SOA only changes after a DB update
 - SOA only changes when the database is updated (every 36 blocks)
 - Add AXFR support for easier container use
+
+
+## References
+
+If you are unfamiliar with the cponcept & practice of signing the ROOT zone yourself, 
+[this is](https://dnsworkshop.de/local-augmented-root-zone.html) an excellent reference.
+
+And (here is)[https://www.cloudflare.com/dns/dnssec/how-dnssec-works/] an excellent
+general background to DNSSEC from Cloudflare.

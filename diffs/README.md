@@ -1,6 +1,6 @@
 # Handshake-Bridge Patches
 
-These are patches for the [Handshake.org](http://www.handshake.org) project [hsd](https://github.com/handshake-org/hsd).
+These are patches for the [Handshake.org](http://www.handshake.org) repo [hsd](https://github.com/handshake-org/hsd).
 
 ## `dumpzone.diff`
 

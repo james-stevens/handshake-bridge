@@ -1,17 +1,30 @@
 #! /bin/bash
 # (c) Copyright 2020 - James Stevens
 
+set -x 
 
-if test -z "${base}" -o -z "${icann_root_dns}"
+base="$(dirname $(dirname ${0}))"
+if test "${base}" = "."; then base="$(pwd)"; fi
+
+if test -z "${base}"
 	then
-		echo "ERROR: running config is incomplete"
+		echo "ERROR: Finding directory base"
 		exit 1
 	fi
 
-set -x
+. ${base}/config
+
+
+
+function handshake_header()
+{
+	echo ". 86400  IN SOA . . ${1} 1800 900 604800 86400"
+	echo ". 518400 IN NS ."
+	echo ". 518400 IN A 127.0.0.1"
+}
+
 
 digcmd="dig +nocmd +nocomments +nostats"
-
 
 rm -f ${base}/tmp/*
 
@@ -37,17 +50,13 @@ if test ${icann_now_soa} -gt ${icann_old_soa}
 			block["RRSIG"] = "Y"; block["NSEC"] = "Y";
 			block["NSEC3"] = "Y"; block["DNSKEY"] = "Y";
 			block["NSEC3PARAM"] = "Y"; } 
-			{ if (block[$4] != "Y") print }' > ${tmp}
+			{ 
+			if (block[$4] != "Y") print 
+			}' > ${tmp}
 
-		if test -z "${newest_icann}" || ! cmp ${tmp} ${newest_icann}
-			then
-				newest_icann="${base}/zones/icann_${now}.txt"
-				mv ${tmp} ${newest_icann}
-				resign="Y"
-			else
-				rm -f ${tmp}
-				echo "No change to ICANN - ${icann_now_soa}"
-			fi
+		newest_icann="${base}/zones/icann_${now}.txt"
+		mv ${tmp} ${newest_icann}
+		resign="Y"
 	fi
 
 
@@ -66,11 +75,7 @@ handshake_now_soa="$(${digcmd} +norec +short @${handshake_root_dns} . soa | awk 
 if test ${handshake_now_soa} -gt ${handshake_old_soa}
 	then
 		tmp=$(mktemp ${base}/tmp/handshake_XXXXXX)
-		{
-		echo ". 86400  IN SOA . . ${handshake_now_soa} 1800 900 604800 86400"
-		echo ". 518400 IN NS ."
-		echo ". 518400 IN A 127.0.0.1"
-		} > "${tmp}~"
+		handshake_header "${handshake_now_soa}" > "${tmp}~"
 
 		${hsd_rpc} dumpzone ${tmp}
 
@@ -87,16 +92,9 @@ if test ${handshake_now_soa} -gt ${handshake_old_soa}
 				sleep 1
 			done
 
-
-		if test -z "${newest_handshake}" || ! cmp ${tmp} ${newest_handshake}
-			then
-				newest_handshake="${base}/zones/handshake_${now}.txt"
-				mv ${tmp} ${newest_handshake}
-				resign="Y"
-			else
-				rm -f ${tmp}
-				echo "No change to ICANN - ${handshake_now_soa}"
-			fi
+		newest_handshake="${base}/zones/handshake_${now}.txt"
+		mv ${tmp} ${newest_handshake}
+		resign="Y"
 	fi
 
 
@@ -112,26 +110,56 @@ if test ${handshake_now_soa} -gt ${handshake_old_soa}
 echo "----> ${resign} ${newest_handshake} ${newest_icann}"
 
 
-if ! test "${priority_icann}" = "Y"
+if test "${priority_icann}" = "Y"
 	then
-		one="${newest_handshake}"; file="${newest_icann}"
+		file="${newest_handshake}"
+		keep="${newest_icann}"
+		dups="Handshake"
 	else
-		file="${newest_handshake}"; one="${newest_icann}"
+		keep="${newest_handshake}"
+		file="${newest_icann}"
+		dups="ICANN"
 	fi
 
+
+
 {
-grep '^. ' ${newest_handshake}
-grep -v '^. ' ${one}
+handshake_header "${handshake_now_soa}"
+
+grep -v '^. ' ${keep}
+
 awk 'BEGIN {
-	one="'"${one}"'"
+	keep="'"${keep}"'"
 	dups="'"${base}"'/tmp/dups"
 
-	while((getline < one)==1) have_one[$1]="Y"
-	have_one["."] = "N"
+	while((getline < keep)==1) in_keep[$1]="Y"
+	in_keep["."] = "Y"
 	}
 	{
-		if (have_one[$1]!="Y") print;
-		else print $0 > dups
+		if (in_keep[$1]!="Y") print
+		else {
+			if ($1 != ".") print $0 > dups
+			}
 	}' ${file}
 
-} > ${base}/tmp/both
+} > ${base}/tmp/ROOT
+
+
+if test -s tmp/dups
+	then
+		awk '{ print "'"${dups}"' Duplicate removed:",$0 }' tmp/dups
+		rm -f tmp/dups
+	fi
+
+
+. ${base}/etc/nsec3.salt
+
+cd ${base}/tmp
+dnssec-signzone -o . -t -R -S -A -H 5 -3 ${nsec3_salt} -K ../keys ROOT
+cd ${base}
+
+
+cp tmp/ROOT.signed named/zones/
+rndc -c ${base}/etc/rndc.conf reload . in root
+
+rm tmp/*

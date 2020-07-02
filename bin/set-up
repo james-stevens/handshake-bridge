@@ -1,13 +1,53 @@
 #! /bin/bash
 # (c) Copyright 2020 - James Stevens
 
+
+base="$(pwd)"
+. ${base}/config
+
+sudo umount ${base}/named/dev/log 2>/dev/null
+
 # ncpu=$(lscpu | awk '/^CPU\(s\)/ { print $NF }')
-# salt=$(hexdump -n 5 -e '4/4 "%02X" 1 "\n"' /dev/random)
 
-mkdir -p zones archive keys tmp
+dirs="zones archive keys tmp named etc"
+rm -rf ${dirs}
+
+mkdir ${dirs}
+mkdir named/dev named/etc named/var named/var/named named/zones
+
 chmod 700 keys
+sudo chown nobody: named/var/named
 
-rm keys/*
-dnssec-keygen -K keys -a ECDSAP384SHA384 -n ZONE -r /dev/urandom -L 86400 -f KSK -3 .
-dnssec-keygen -K keys -a ECDSAP384SHA384 -n ZONE -r /dev/urandom -L 86400 -3 .
+sudo cp -a /dev/zero /dev/random /dev/urandom /dev/null named/dev
+touch named/dev/log
+sudo mount -o bind /dev/log ${base}/named/dev/log
+
+rndc-confgen -s ${bind_local_addr} > etc/rndc.conf
+awk '/^#/&&!/named.conf/&&!/of rndc.conf/ { print substr($0,3) }' etc/rndc.conf > named/etc/rndc.inc
+chmod 444 named/etc/rndc.inc
+
+
+dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -r /dev/urandom -L 86400 -f KSK -3 .
+dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -r /dev/urandom -L 86400 -3 .
+
+
+# `bind` is a fussy bitch, it won't listen on an address unless its assigned :(
+for addr in ${bind_loop_addr} ${bind_local_addr}
+do
+	if ! ip addr show lo | grep -q "inet ${addr}/"
+		then
+			sudo ip addr add ${addr}/8 dev lo
+		fi
+done
+
+
+awk '/ 257 / { 
+	$8="\"" _ $8; 
+	printf "trusted-keys {\n\t\".\" %s\";\n};\n",substr($0,index($0," 257 ")) 
+	}' keys/*.key > named/etc/trusted-keys.inc
+
+chmod 444 named/etc/trusted-keys.inc
+
+salt=$(hexdump -n 5 -e '4/4 "%02X" 1 "\n"' /dev/random | tr -d ' ')
+echo "nsec3_salt='${salt}'" > etc/nsec3.salt
 

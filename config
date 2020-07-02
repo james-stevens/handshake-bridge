@@ -1,0 +1,36 @@
+#! /bin/bash
+
+# This is a `bash` include file, so bash escaping may be necessary
+
+
+# If a duplicate domains exist, "Y" means retain the ICANN records & drop the Handshake ones
+# anything other than "Y" and Handshake records are prioritised
+priority_icann="Y"
+
+
+icann_root_dns="f.root-servers.net."
+
+
+# IP Address to query for Handshake ROOT SOA Serial
+handshake_root_dns="127.0.0.9"
+
+
+# Path to the HSD-RPC client
+hsd_rpc="/opt/hs-client/bin/hsd-rpc"
+
+
+# NSEC3 Salt
+nsec3_salt="F9CC0D5872"
+
+
+# algorithm to use to sign the ROOT zone
+signing_algorithm="ECDSAP384SHA384"
+
+
+# IP Addresses for `bind` to run your required service on
+bind_server_addr="192.168.1.181"
+bind_local_addr="127.9.0.1"
+
+
+# IP Addresses for `bind` to talk to itself to run the signed ROOT service
+bind_loop_addr="127.9.0.2"
