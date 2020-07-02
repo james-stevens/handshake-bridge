@@ -7,7 +7,7 @@ The goals are
 - Be able to resolve handshake & ICANN TLDs in a single instance of `bind` with full DNSSEC support using your own private keys, you can choose to trust.
 - Ensure full DNSSEC capability, so the data can be trusted no matter how it is come-by
 
-To use this project, you must apply the `dumpzone` patch (included) as `diffs/dumpzone.diff`
+To use this project, you **must** apply the `dumpzone` patch (included) as `diffs/dumpzone.diff`
 
 I would also strongly recommend you apply the `diffs/nosign.diff` patch.
 
