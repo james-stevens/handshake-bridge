@@ -11,7 +11,7 @@ To use this project, you must apply the `dumpzone` patch (included) as `diffs/du
 
 I would also strongly recommend you apply the `diffs/nosign.diff` patch.
 
-`NS` referrals should **not* be signed in the parent zone and signing all the `NS` records in the handshake zone
+`NS` referrals should **not** be signed in the parent zone and signing all the `NS` records in the handshake zone
 take up a lot of time. Typically a `dumpzone` will take about 10 times longer if it signed all the `NS` referrals.
 
 ## ToDo
