@@ -18,16 +18,21 @@ There is a `README` in the `diffs` directory which gives more information.
 
 ## Getting it working
 
-### How-To
+### Prerequisits
 
 - Ensure you have `hsd` running corrrectly
 - Ensure you have the full `bind` package installed - `named`, `rndc`, `rndc-confgen`, `dnssec-keygen` & `dnssec-signzone`
+
+
+### Actions
+
 - Clone this project and go into the project durectory
 - Edit the file 'config' to meet your needs
 - Run `./bin/setup`
 
 
-## ToDo
+
+## More I want to get done
 
 Desired mods to `hsd` (in order)
 
