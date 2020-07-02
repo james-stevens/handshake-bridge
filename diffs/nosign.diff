@@ -1,0 +1,25 @@
+diff --git a/lib/dns/resource.js b/lib/dns/resource.js
+index 5189c70f..4bcee301 100644
+--- a/lib/dns/resource.js
++++ b/lib/dns/resource.js
+@@ -285,10 +285,8 @@ class Resource extends Struct {
+       res.additional = this.toGlue(name);
+ 
+       // Note: should have nsec unsigned zone proof.
+-      if (!this.hasDS())
+-        key.signZSK(res.authority, types.NS);
+-      else
+-        key.signZSK(res.authority, types.DS);
++      if (this.hasDS()) key.signZSK(res.authority, types.DS);
++
+     } else {
+       // Needs SOA.
+     }
+@@ -315,7 +313,6 @@ class Resource extends Struct {
+       case types.NS:
+         res.authority = this.toNS(name);
+         res.additional = this.toGlue(name);
+-        key.signZSK(res.authority, types.NS);
+         break;
+       case types.TXT:
+         res.answer = this.toTXT(name);
