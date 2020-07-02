@@ -27,7 +27,7 @@ There is a `README` in the `diffs` directory which gives more information.
 ### Actions
 
 - Clone this project and go into the project durectory
-- Edit the file 'config' to meet your needs
+- Edit the file `config` to meet your needs
 - Run `./bin/setup`
 
 
