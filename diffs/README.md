@@ -18,13 +18,15 @@ the `rcp` client allows. However, the dump will still complete, so just ignore t
 
 If you have `debug` messages enabled in your `hsd`, it will report dump progress every `5000` names.
 
-*Eventually* I intend to create a patch to add `AXFR` support (standard TCP Zone Transfer request). Until then this will do.
+*Eventually* I intend to create a patch to add `AXFR` support (standard TCP Zone Transfer request). Until then, this will do.
 
-This patch is just a modified version of [Mark Tyneway's](https://github.com/tynes) original [dumpzopne patch](https://github.com/handshake-org/hsd/pull/280)
+This patch is just a modified version of [Mark Tyneway's](https://github.com/tynes) original [dumpzone patch](https://github.com/handshake-org/hsd/pull/280)
 
 
 ## `nosign.diff`
 
 `NS` referral record in a parent zone should **NOT** be signed. This is a bug in `hsd`.
 
-This patch fixes this bug, which also means the `dumpzone` runs about 10x faster.
+This patch fixes this bug and disabled the `RRSIG` record for `NS` referrals. This means the `dumpzone` runs about 10x faster.
+
+This patch is optional.
