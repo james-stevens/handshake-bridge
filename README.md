@@ -48,4 +48,4 @@ If you are unfamiliar with the concept & practice of signing the ROOT zone with 
 [this is](https://dnsworkshop.de/local-augmented-root-zone.html) an excellent reference.
 
 And [here is](https://www.cloudflare.com/dns/dnssec/how-dnssec-works/) an excellent
-general background to DNSSEC from Cloudflare.
+general background in DNSSEC from Cloudflare.
