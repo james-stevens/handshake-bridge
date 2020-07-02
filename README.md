@@ -4,7 +4,8 @@
 The purpose of this project is to provide a bridge between the existing DNS operation and the Handshake project.
 
 The goals are
-- Be able to resolve handshake & ICANN TLDs in a single instance of `bind` with full DNSSEC support using your own private keys, you can choose to trust.
+- Be able to resolve handshake & ICANN TLDs in a single instance of `bind` with full DNSSEC support
+using your own (private) ROOT zone keys (KSK & ZSK), which you can choose to trust.
 - Ensure full DNSSEC capability, so the data can be trusted no matter how it is come-by
 
 To use this project, you **must** apply the `dumpzone` patch included as `diffs/dumpzone.diff`
