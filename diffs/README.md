@@ -25,8 +25,8 @@ This patch is just a modified version of [Mark Tyneway's](https://github.com/tyn
 
 ## `nosign.diff`
 
-`NS` referral record in a parent zone should **NOT** be signed. This is a bug in `hsd`.
+`NS` referral records in a parent zone should **NOT** be signed. This is a bug in `hsd`.
 
-This patch fixes this bug and disabled the `RRSIG` record for `NS` referrals. This means the `dumpzone` runs about 10x faster.
+This patch fixes this bug and disables the `RRSIG` record for `NS` referrals. This means the `dumpzone` runs about 10x faster.
 
-This patch is optional.
+This patch is optional, but recommened
