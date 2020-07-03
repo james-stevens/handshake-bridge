@@ -17,7 +17,7 @@ You can do this by either using the resolver service directly, or by running a D
 which has been told to trust your own KSK's Public Key.
 
 
-To use this project, you **must** apply the `dumpzone` patch included as `diffs/dumpzone.diff`
+To use this project, you **must** apply the `hsd` `dumpzone` patch included as `diffs/dumpzone.diff`
 
 I would also strongly recommend you apply the `diffs/nosign.diff` patch.
 
