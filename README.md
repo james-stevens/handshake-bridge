@@ -10,7 +10,7 @@ To do this it will
 - Sign them with your own set of keys (KSK & ZSK)
 - Provide an AXFR/IXFR Service & Resolver Service of the merged, signed ROOT zone
 
-You can then tell any DNSSEC aware DNS software to trust you own KSK (by giving it the public key) then use this ROOT service / resolver
+You can then tell any DNSSEC aware DNS software to trust your own KSK (by giving it the public key) then use this ROOT service / resolver
 and all the ICANN & Handshake data will correctly validate.
 
 You can do this by either using the resolver service directly, or by running a DNSSEC-aware stubb resolver on your desktop
