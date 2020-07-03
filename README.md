@@ -7,7 +7,7 @@ To do this it will
 - Take a copy of both ROOT zones
 - Merge them
 - Sign them with your own set of keys (KSK & ZSK)
-- Provide an AXFR/IXFR Service & resolver service of the merged, signed ROOT zone
+- Provide an AXFR/IXFR Service & Resolver Service of the merged, signed ROOT zone
 
 You can then tell any DNSSEC aware DNS software to trust you own KSK (by giving it the public key) then use this ROOT service / resolver
 and all the ICANN & Handshake data will correctly validate.
@@ -26,14 +26,14 @@ There is a `README` in the `diffs` directory which gives more information.
 
 ## Getting it working
 
-### Prerequisits
+### Prerequisites
 
-- Ensure you have `hsd` running corrrectly
+- Ensure you have `hsd` running correctly
 - Ensure you have the full `bind` package installed, including `named`, `rndc`, `rndc-confgen`, `dnssec-keygen` & `dnssec-signzone`
 
 
-**NOTE:** Until XFR is working in `hsd`, the transfer of handshake data requires chared file space. This can be done in containers, but is more painful
-then just running on the same host. So for the time being running `hsd` and this ont he same host is probably the easiest option.
+**NOTE:** Until XFR is working in `hsd`, the transfer of handshake data requires shared file space. This can be done in containers, but is more painful
+then just running on the same host. So for the time being running `hsd` and this on the same host is probably the easiest option.
 
 
 
@@ -43,11 +43,11 @@ then just running on the same host. So for the time being running `hsd` and this
 - Edit the file `config` to meet your needs
 - Run `./bin/setup`
 
-If the `set-up` runs OK you should now have `bind` running, as the process `named-handshake-bridge`, providing four separate DNS sevices. They are
+If the `set-up` runs OK you should now have `bind` running, as the process `named-handshake-bridge`, providing four separate DNS services. They are
 - A local mirror of the ICANN ROOT zone
 - A authoritative master with the signed merged ROOT zone, which only offers AXFR support
 - A authoritative master with the signed merged ROOT zone, which can offer AXFR & IXFR support
-- A validating resolver that fully supports DNSSEC and trusts your locla ROOT KSK for validting any DNSSEC data (ICANN or Hansshake)
+- A validating resolver that fully supports DNSSEC and trusts your locla ROOT KSK for validating any DNSSEC data (ICANN or Handshake)
 
 These run on the IP Addresses you gave in the `config` as well as `127.0.0.0/8` IPs as follows
 - `{{config.bind_local_prefix}}.1` -> Resolver
@@ -63,13 +63,13 @@ The output you should see is the SOA RR for each of these four services. Three o
 which is the SOA RR of the merged & locally signed ROOT zone and one will give the ICANN ROOT SOA RR.
 
 
-You should be able to run `set-up` either as `root` or an ordinary user, but soem operations on some platforms
-require `root` permission, so I have preceeded this with `sudo`. If you don't use `sudo`, just modify the `set-up`
+You should be able to run `set-up` either as `root` or an ordinary user, but some operations on some platforms
+require `root` permission, so I have preceded this with `sudo`. If you don't use `sudo`, just modify the `set-up`
 script to whatever you do use.
 
 `set-up` will install a `cron` job which runs every 15 minutes to execute `bin/handshake-bridge-cronjob`. This
 polls the SOA serial of both ROOT zones to check if either needs refreshing. This is not ideal, but neither change
-thaty often, so I'm sure its fine.
+that often, so I'm sure its fine.
 
 
 
@@ -77,10 +77,10 @@ thaty often, so I'm sure its fine.
 
 
 
-### Use it directly from yuor client
+### Use it directly from your client
 
 If you have given the resolver service an externally addressable IP Address, all you have to tell your client's to
-use this resolver and you will be able to resolve both ICANN & Hansshake DNS with full DNSSEC support
+use this resolver and you will be able to resolve both ICANN & Handshake DNS with full DNSSEC support
 
 If you wish to continue to use an external resolver, you can do this in one of two ways
 
@@ -88,7 +88,7 @@ If you wish to continue to use an external resolver, you can do this in one of t
 
 ### Forward your existing resolver to this Resolver
 
-In `bind` you can forward queries to a higer level resolver with the following
+In `bind` you can forward queries to a higher level resolver with the following
 
 	forward only;
 	forwarders { [config.bind_recusive_addr] };
