@@ -1,0 +1,41 @@
+#! /bin/sh
+
+. ./config
+
+echo ""
+
+for file in named/zones/ROOT.signed  named/zones/ROOT.slave  named/zones/icann.db
+do
+	if ! test -f ${file}
+		then
+			echo "ERROR: ${file} file not found"
+		fi
+done
+
+
+if ! test "$(ls zones/icann_* 2>/dev/null)"
+	then
+		echo "ERROR: ICANN ROOT zone store not found"
+	fi
+
+if ! test "$(ls zones/handshake_* 2>/dev/null)"
+	then
+		echo "ERROR: Handshake ROOT zone store not found"
+	fi
+
+if ! crontab -l | grep -q handshake-bridge-cronjob
+	then
+		echo "ERROR: cron job is not set up"
+	fi
+
+{
+echo "1 Resolver"
+echo "2 Merged/Slave"
+echo "3 ICANN/Slave"
+echo "5 Merged/Master"
+} | while read ip name
+do
+	printf "%020s %10s.%s --- %s\n" ${name} ${bind_local_prefix} ${ip} "$(dig +short @${bind_local_prefix}.${ip} . soa)"
+done
+
+echo ""

@@ -1,30 +1,37 @@
 #! /bin/bash
 # (c) Copyright 2020 - James Stevens
 
+base="$(dirname $(dirname ${0}))"
+if test "${base}" = "."; then base="$(pwd)"; fi
 
-base="$(pwd)"
 . ${base}/config
 
-sudo umount ${base}/named/dev/log 2>/dev/null
+sudo=""
+if ! test $(id -u) = 0
+	then	
+		sudo="sudo"
+	fi
+
+${sudo} umount ${base}/named/dev/log 2>/dev/null
+${sudo} killall -q named-handshake-bridge
 
 # ncpu=$(lscpu | awk '/^CPU\(s\)/ { print $NF }')
 
 dirs="zones archive keys tmp named etc"
-rm -rf ${dirs}
+${sudo} rm -rf ${dirs}
 
 mkdir ${dirs}
 mkdir named/dev named/etc named/var named/var/named named/zones
 
 chmod 700 keys
-sudo chown nobody: named/var/named
 
-sudo cp -a /dev/zero /dev/random /dev/urandom /dev/null named/dev
+chmod 770 named/zones
+${sudo} chgrp $(id -g nobody) named/zones
+${sudo} chown nobody: named/var/named
+
+${sudo} cp -a /dev/zero /dev/random /dev/urandom /dev/null named/dev
 touch named/dev/log
-sudo mount -o bind /dev/log ${base}/named/dev/log
-
-rndc-confgen -s ${bind_local_addr} > etc/rndc.conf
-awk '/^#/&&!/named.conf/&&!/of rndc.conf/ { print substr($0,3) }' etc/rndc.conf > named/etc/rndc.inc
-chmod 444 named/etc/rndc.inc
+${sudo} mount -o bind /dev/log ${base}/named/dev/log
 
 
 dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -r /dev/urandom -L 86400 -f KSK -3 .
@@ -32,22 +39,76 @@ dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -r /dev/urandom -L 86400
 
 
 # `bind` is a fussy bitch, it won't listen on an address unless its assigned :(
-for addr in ${bind_loop_addr} ${bind_local_addr}
+for x in 1 2 3 5
 do
+	addr="${bind_local_prefix}.${x}"
 	if ! ip addr show lo | grep -q "inet ${addr}/"
 		then
-			sudo ip addr add ${addr}/8 dev lo
+			${sudo} ip addr add ${addr}/8 dev lo
 		fi
 done
 
 
-awk '/ 257 / { 
-	$8="\"" _ $8; 
+awk '/ 257 / { $8="\"" _ $8; 
 	printf "trusted-keys {\n\t\".\" %s\";\n};\n",substr($0,index($0," 257 ")) 
 	}' keys/*.key > named/etc/trusted-keys.inc
 
 chmod 444 named/etc/trusted-keys.inc
 
-salt=$(hexdump -n 5 -e '4/4 "%02X" 1 "\n"' /dev/random | tr -d ' ')
+salt="$(dd if=/dev/urandom count=6 bs=1 2>/dev/null | hexdump | awk '{ print $2 $3 $4 }')"
 echo "nsec3_salt='${salt}'" > etc/nsec3.salt
+chmod 444 etc/nsec3.salt
 
+
+sed "s/MERGED_ADDR/${bind_local_prefix}.5/g" named.conf > named/etc/named.conf
+chmod 444 named/etc/named.conf
+
+
+merged_addr="${bind_local_prefix}.5"
+
+{
+echo "acl merged_acl    { ${merged_addr}; };"
+echo "acl recursive_acl { ${bind_local_prefix}.1; ${bind_recusive_addr}; };"
+echo "acl slave_acl     { ${bind_local_prefix}.2; ${bind_slave_addr}; };"
+echo "acl mirror_acl    { ${bind_local_prefix}.3; ${bind_mirror_addr}; };"
+echo ""
+echo "masters merged_masters    { ${merged_addr}; };"
+echo "masters recursive_masters { ${bind_local_prefix}.1; ${bind_recusive_addr}; };"
+echo "masters slave_masters     { ${bind_local_prefix}.2; ${bind_slave_addr}; };"
+echo "masters mirror_masters    { ${bind_local_prefix}.3; ${bind_mirror_addr}; };"
+} > named/etc/addrs.inc
+chmod 444 named/etc/addrs.inc
+
+
+rndc-confgen -s ${merged_addr} > etc/rndc.conf
+awk '/^#/&&!/named.conf/&&!/of rndc.conf/ { 
+	if ($2=="allow") $4="127.0.0.0/8;"
+	print substr($0,3) 
+	}' etc/rndc.conf > named/etc/rndc.inc
+chmod 444 named/etc/rndc.inc
+
+
+if ! ${base}/bin/handshake-bridge-cronjob startup
+	then
+		echo "ERROR: Failed to create merged ROOT zone"
+		exit 1
+	fi
+
+
+ln -fns $(which named) ${base}/bin/named-handshake-bridge
+
+if ! ${sudo} named-checkconf -t /opt/handshake-bridge/named
+	then
+		echo "ERROR: named config failed validation"
+		exit 1
+	fi
+
+${sudo} ${base}/bin/named-handshake-bridge -t /opt/handshake-bridge/named/ -u nobody
+
+tmp="$(mktemp)"
+{
+crontab -l | grep -v handshake-bridge-cronjob
+echo "*/15 * * * * ${base}/bin/handshake-bridge-cronjob"
+} > ${tmp}
+crontab ${tmp}
+rm -f ${tmp}

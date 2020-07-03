@@ -1,8 +1,11 @@
 #! /bin/bash
 # (c) Copyright 2020 - James Stevens
 
-set -x 
+pipecmd="logger -i -t handshake-bridge-cron"
+if test "${1}" = "startup"; then pipecmd="cat"; fi
 
+
+{
 base="$(dirname $(dirname ${0}))"
 if test "${base}" = "."; then base="$(pwd)"; fi
 
@@ -14,6 +17,8 @@ if test -z "${base}"
 
 . ${base}/config
 
+icann_root="${bind_local_prefix}.3"
+if test "${1}" = "startup"; then icann_root="f.root-servers.net."; fi
 
 
 function handshake_header()
@@ -36,9 +41,10 @@ if test "${newest_icann}" -a -f "${newest_icann}"
 		icann_old_soa="$(awk '{ if (($1==".")&&($4=="SOA")) { print $7; exit(0) } }' ${newest_icann})"
 	fi
 
-icann_now_soa="$(${digcmd} +norec +short @${icann_root_dns} . soa | awk '{ print $3 }')"
+icann_now_soa="$(${digcmd} +norec +short @${icann_root} . soa | awk '{ print $3 }')"
 
 resign="N"
+if test "${1}" = "force"; then resign="Y"; fi
 
 now="$(date +%Y%m%d_%H%M%S)"
 
@@ -46,7 +52,7 @@ now="$(date +%Y%m%d_%H%M%S)"
 if test ${icann_now_soa} -gt ${icann_old_soa}
 	then
 		tmp=$(mktemp ${base}/tmp/icann_XXXXXX)
-		${digcmd} @${icann_root_dns} . axfr | tr $'\t' ' ' | awk 'BEGIN {
+		${digcmd} @${icann_root} . axfr | tr $'\t' ' ' | awk 'BEGIN {
 			block["RRSIG"] = "Y"; block["NSEC"] = "Y";
 			block["NSEC3"] = "Y"; block["DNSKEY"] = "Y";
 			block["NSEC3PARAM"] = "Y"; } 
@@ -69,7 +75,7 @@ if test "${newest_handshake}" -a -f "${newest_handshake}"
 		handshake_old_soa="$(awk '{ if (($1==".")&&($4=="SOA")) { print $7; exit(0) } }' ${newest_handshake})"
 	fi
 
-handshake_now_soa="$(${digcmd} +norec +short @${handshake_root_dns} . soa | awk '{ print $3 }')"
+handshake_now_soa="$(${digcmd} +norec +short @${hsd_server_addr} . soa | awk '{ print $3 }')"
 
 
 if test ${handshake_now_soa} -gt ${handshake_old_soa}
@@ -77,37 +83,36 @@ if test ${handshake_now_soa} -gt ${handshake_old_soa}
 		tmp=$(mktemp ${base}/tmp/handshake_XXXXXX)
 		handshake_header "${handshake_now_soa}" > "${tmp}~"
 
-		${hsd_rpc} dumpzone ${tmp}
+		${hsd_rpc} dumpzone ${tmp} > /dev/null 2>&1
 
 		x=0
 		while ! test -s ${tmp}
 			do
+				echo -n "."
 				x=$[${x}+1]
 				if test ${x} -gt 180
 					then
-						rm -f ${tmp}
+						rm -f tmp/*
+						echo ""
 						echo "ERROR: RPC dumpzone to ${tmp} Failed"
 						exit 1
 					fi
 				sleep 1
 			done
 
+		echo ""
 		newest_handshake="${base}/zones/handshake_${now}.txt"
 		mv ${tmp} ${newest_handshake}
 		resign="Y"
 	fi
 
 
-
-
-
-
-# ncpu=$(lscpu | awk '/^CPU\(s\)/ { print $NF }')
-# salt=$(hexdump -n 5 -e '4/4 "%02X" 1 "\n"' /dev/random | tr -d ' ')
-
-
-
-echo "----> ${resign} ${newest_handshake} ${newest_icann}"
+# echo "----> ${resign} ${newest_handshake} ${newest_icann}"
+if ! test "${resign}" = "Y"
+	then
+		echo "Resigning not required"
+		exit 0
+	fi
 
 
 if test "${priority_icann}" = "Y"
@@ -124,7 +129,7 @@ if test "${priority_icann}" = "Y"
 
 
 {
-handshake_header "${handshake_now_soa}"
+handshake_header "$(date +%s)"
 
 grep -v '^. ' ${keep}
 
@@ -151,15 +156,33 @@ if test -s tmp/dups
 		rm -f tmp/dups
 	fi
 
+if ! named-checkzone -i local-sibling -k ignore . tmp/ROOT
+	then
+		echo "ERROR: Merged ROOT zone failed validation check"
+		exit 1
+	fi
+
 
 . ${base}/etc/nsec3.salt
 
+start="$(awk 'BEGIN { x=systime(); srand(x/604800*13); x = int(x / 604800) * 604800; x += int(rand() * 86400); print strftime("%Y%m%d%H%M%S",x); }')"
+
 cd ${base}/tmp
-dnssec-signzone -o . -t -R -S -A -H 5 -3 ${nsec3_salt} -K ../keys ROOT
+dnssec-signzone -s ${start} -o . -t -R -S -A -H 5 -3 ${nsec3_salt} -K ../keys ROOT
 cd ${base}
 
-
-cp tmp/ROOT.signed named/zones/
-rndc -c ${base}/etc/rndc.conf reload . in root
+if ! named-checkzone -i local-sibling -k ignore . tmp/ROOT.signed
+	then
+		echo "ERROR: Merged & Signed ROOT zone failed validation check"
+		exit 1
+	else
+		cp tmp/ROOT.signed named/zones/
+		if ! test "${1}" = "startup"
+			then
+				rndc -c ${base}/etc/rndc.conf reload . in root
+			fi
+	fi
 
 rm tmp/*
+
+} 2>&1 | ${pipecmd}

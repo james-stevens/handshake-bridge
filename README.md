@@ -3,10 +3,18 @@
 
 The purpose of this project is to provide a bridge between the existing DNS operation and the Handshake project.
 
-The goals are
-- Be able to resolve handshake & ICANN TLDs in a single instance of `bind` with full DNSSEC support
-using your own (private) ROOT zone keys (KSK & ZSK), which you can choose to trust.
-- Ensure full DNSSEC capability, so the data can be trusted no matter how it is come-by
+To do this it will
+- Take a copy of both ROOT zones
+- Merge them
+- Sign them with your own set of keys (KSK * ZSK)
+- Provide an ROOT Server, AXFR/IXFR Service & resolver service of the merged, signed data
+
+You can then tell any DNSSEC aware DNS software to trust you own KSK (by giving it the public key) then use this ROOT service / resolver
+and all the ICANN & Handshake data will correctly validate.
+
+You can do this by either using the resolver service directly, or by running a DNSSEC-aware stubb resolver on your desktop
+which has been told to trust your own KSK's Public Key.
+
 
 To use this project, you **must** apply the `dumpzone` patch included as `diffs/dumpzone.diff`
 

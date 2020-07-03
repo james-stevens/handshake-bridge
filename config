@@ -8,29 +8,27 @@
 priority_icann="Y"
 
 
-icann_root_dns="f.root-servers.net."
-
-
 # IP Address to query for Handshake ROOT SOA Serial
-handshake_root_dns="127.0.0.9"
+# i.e `hsd` server address `--ns-hotst <addr>`
+hsd_server_addr="127.0.0.9"
 
 
 # Path to the HSD-RPC client
 hsd_rpc="/opt/hs-client/bin/hsd-rpc"
 
 
-# NSEC3 Salt
-nsec3_salt="F9CC0D5872"
-
-
 # algorithm to use to sign the ROOT zone
 signing_algorithm="ECDSAP384SHA384"
 
 
+# Addresses in this prefix are used so `bind` can talk to itself
+# the value doesn't really matter, so long as your not using it for anything else
+bind_local_prefix="127.9.0"
+
+
 # IP Addresses for `bind` to run your required service on
-bind_server_addr="192.168.1.181"
-bind_local_addr="127.9.0.1"
-
-
-# IP Addresses for `bind` to talk to itself to run the signed ROOT service
-bind_loop_addr="127.9.0.2"
+# if you don't want any of these services available externally, use a 127.0.0.0/8 address
+# NOTE: Unlike most Linux apps, `bind` can't use an IP unless it has been explicitly assigned to an interface
+bind_recusive_addr="192.168.1.181"
+bind_slave_addr="192.168.1.182"
+bind_mirror_addr="192.168.1.183"
