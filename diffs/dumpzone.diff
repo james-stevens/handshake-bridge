@@ -1,5 +1,5 @@
 diff --git a/lib/node/rpc.js b/lib/node/rpc.js
-index 6f8ac687..72176240 100644
+index 6f8ac687..d33295ef 100644
 --- a/lib/node/rpc.js
 +++ b/lib/node/rpc.js
 @@ -6,6 +6,10 @@
@@ -33,7 +33,7 @@ index 6f8ac687..72176240 100644
  
      // Compat
      // this.add('getnameinfo', this.getNameInfo);
-@@ -2320,10 +2330,59 @@ class RPC extends RPCBase {
+@@ -2320,10 +2330,69 @@ class RPC extends RPCBase {
        const info = ns.getJSON(height, network);
        items.push(info);
      }
@@ -55,7 +55,11 @@ index 6f8ac687..72176240 100644
 +
 +	const tmp = filename + "~";
 +	this.logger.debug("DUMP-ZONE filename",filename);
-+	const fd = fs.createWriteStream(tmp, { flags: 'w' });
++
++	let fd = null;
++	let fileErr = null
++	fd = fs.createWriteStream(tmp, { flags: 'a+' });
++	fd.on('error', err => { fd.end(); fd=null; fileErr = err; });
 +
 +    const network = this.network;
 +    const height = this.chain.height;
@@ -67,8 +71,9 @@ index 6f8ac687..72176240 100644
 +	this.logger.debug("DUMP-ZONE Ready");
 +
 +	let numNames = 0
-+	while (await iter.next()) {
++	while ((await iter.next())&&(fd != null)) {
 +
++	  if (fd == null) break;
 +	  if ((++numNames % 5000)==0) this.logger.debug("DUMP-ZONE Progress",numNames);
 +
 +	  const {key, value} = iter;
@@ -79,12 +84,17 @@ index 6f8ac687..72176240 100644
 +	  const resource = Resource.decode(ns.data);
 +	  const dns = resource.toDNS(fqdn, 0);
 +
-+	  for (const rr of dns.records())
-+		  if (rr.type !== types.RRSIG) fd.write(rr.toString() + "\n");
++	  for (const rr of dns.records()) {
++		if (fd == null) break;
++		if (rr.type !== types.RRSIG) fd.write(rr.toString() + "\n");
++		}
 +	}
 +
-+	fd.end();
-+	fs.renameSync(tmp,filename);
++	if (fd != null) {
++	  fd.end();
++	  fs.renameSync(tmp,filename);
++	  }
++	else return fileErr;
 +
 +	this.logger.debug("DUMP-ZONE Finish",numNames);
 +
