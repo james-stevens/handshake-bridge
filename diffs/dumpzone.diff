@@ -90,11 +90,10 @@ index 6f8ac687..d33295ef 100644
 +		}
 +	}
 +
-+	if (fd != null) {
-+	  fd.end();
-+	  fs.renameSync(tmp,filename);
-+	  }
-+	else return fileErr;
++	if (fd == null) return fileErr;
++
++	fd.end();
++	fs.renameSync(tmp,filename);
 +
 +	this.logger.debug("DUMP-ZONE Finish",numNames);
 +
