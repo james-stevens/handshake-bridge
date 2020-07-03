@@ -33,8 +33,9 @@ There is a `README` in the `diffs` directory which gives more information.
 - Ensure you have the full `bind` package installed, including `named`, `rndc`, `rndc-confgen`, `dnssec-keygen` & `dnssec-signzone`
 
 
-**NOTE:** Until XFR is working in `hsd`, the transfer of handshake data requires shared file space. This can be done in containers, but is more painful
-then just running on the same host. So for the time being running `hsd` and this on the same host is probably the easiest option.
+**NOTE:** Until XFR is working in `hsd`, the transfer of handshake data uses `hsd-rpc dumpzone <file>` which equires shared file space.
+This can be done in containers, but is little more painful
+than just running on the same host. So for the time being running `hsd` and this on the same host is probably the easiest option.
 
 
 
