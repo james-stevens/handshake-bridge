@@ -185,4 +185,16 @@ if ! named-checkzone -i local-sibling -k ignore . tmp/ROOT.signed
 
 rm tmp/*
 
+keep_zones_files=5
+cd zones
+handshake_files="$(ls -t handshake_* | tail -n +${keep_zones_files})"
+icann_files="$(ls -t icann_* | tail -n +${keep_zones_files})"
+if test "${handshake_files}${icann_files}"
+	then
+		mv -v ${handshake_files} ${icann_files} ../archive
+		cd ${base}/archive
+		xz -v ${handshake_files} ${icann_files}
+	fi
+cd ${base}
+
 } 2>&1 | ${pipecmd}
