@@ -36,6 +36,8 @@ ${sudo} cp -a /dev/zero /dev/random /dev/urandom /dev/null named/dev
 touch named/dev/log
 ${sudo} mount -o bind /dev/log ${base}/named/dev/log
 
+date +%w > etc/week_num
+
 
 dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -r /dev/urandom -L 86400 -f KSK -3 .
 dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -r /dev/urandom -L 86400 -3 .
