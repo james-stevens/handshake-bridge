@@ -1,7 +1,8 @@
 # handshake-bridge
 ## Bridging Handshake &amp; ICANN TLDs
 
-The purpose of this project is to provide a bridge between the existing (ICANN maintained) DNS operation and the Handshake project.
+The purpose of this project is to provide a bridge between the existing (ICANN maintained) public DNS infrastructure and the Handshake project
+while providing at least the same level of security as the public infrastrusture.
 
 To do this it will
 - Take a copy of both ROOT zones
@@ -63,13 +64,15 @@ The output you should see is the SOA RR for each of these four services. Three o
 which is the SOA RR of the merged & locally signed ROOT zone and one will give the ICANN ROOT SOA RR.
 
 
-You should be able to run `set-up` either as `root` or an ordinary user, but some operations on some platforms
-require `root` permission, so I have preceded this with `sudo`. If you don't use `sudo`, just modify the `set-up`
+You should be able to run `set-up` either as `root` or an ordinary user (I tested it as an ordinary user), but some operations on some platforms
+require `root` permission, so I have preceded these with `sudo`. If you don't use `sudo`, just modify the `set-up`
 script to whatever you do use.
 
-`set-up` will install a `cron` job which runs every 15 minutes to execute `bin/handshake-bridge-cronjob`. This
+`set-up` will install a `cron` job which runs every 15 minutes to execute `${base}/bin/handshake-bridge-cronjob`. This
 polls the SOA serial of both ROOT zones to check if either needs refreshing. This is not ideal, but neither change
 that often, so I'm sure its fine.
+
+Once `hsd` has AXFR support and the handshake SOA Serial only rolls when the data is updated, this can be improved
 
 
 ## Using `rndc` to monitor the services
