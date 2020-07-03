@@ -39,15 +39,22 @@ then just running on the same host. So for the time being running `hsd` and this
 
 ### Actions
 
-- Clone this project and go into the project durectory
+- Clone this project and go into the project directory
 - Edit the file `config` to meet your needs
 - Run `./bin/setup`
 
-If the `set-up` runs OK you should now have `bind` running four separate DNS sevices. They are
+If the `set-up` runs OK you should now have `bind` running, as the process `named-handshake-bridge`, providing four separate DNS sevices. They are
 - A local mirror of the ICANN ROOT zone
-- A authritative master with the signed merged ROOT zone, which only offers AXFR support
-- A authritative master with the signed merged ROOT zone, which can offer AXFR & IXFR support
+- A authoritative master with the signed merged ROOT zone, which only offers AXFR support
+- A authoritative master with the signed merged ROOT zone, which can offer AXFR & IXFR support
 - A validating resolver that fully supports DNSSEC and trusts your locla ROOT KSK for validting any DNSSEC data (ICANN or Hansshake)
+
+These run on the IP Addresses you gave in the `config` as well as `127.0.0.0/8` IPs as follows
+- `{{config.bind_local_prefix}}.1` -> Resolver
+- `{{config.bind_local_prefix}}.2` -> AXFR/IXFR Merged ROOT Service
+- `{{config.bind_local_prefix}}.3` -> ICANN Mirror
+- `{{config.bind_local_prefix}}.5` -> AXFR Only Merged Root
+
 
 
 If this is running correctly, you can run the program `./bin/check` and it will run a few basic checks.
@@ -68,7 +75,17 @@ thaty often, so I'm sure its fine.
 
 ## How do I actually use this?
 
-If you have given the resolver service an externally addressable IP Address, all you have to 
+If you have given the resolver service an externally addressable IP Address, all you have to tell your client's to
+use this resolver and you will be able to resolve both ICANN & Hansshake DNS with full DNSSEC support
+
+If you wish to continue to use an external resolver, you can do this in one of two ways
+
+### Forward to this Resolver
+
+In `bind` you can forward queries to a higer level resolver with the following
+
+	forward only;
+	forwarders { [config.bind_recusive_addr] };
 
 
 ## More I want to get done
