@@ -4,6 +4,8 @@
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 
+echo "Starting update check"
+
 pipecmd="logger -i -t handshake-bridge-cron"
 if test "${1}" = "startup"; then pipecmd="cat"; fi
 
