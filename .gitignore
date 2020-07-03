@@ -1,3 +1,4 @@
+bin/named-handshake-bridge
 named/
 tmp/
 zones/
