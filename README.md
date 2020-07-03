@@ -72,9 +72,19 @@ polls the SOA serial of both ROOT zones to check if either needs refreshing. Thi
 that often, so I'm sure its fine.
 
 
+## Using `rndc` to monitor the services
+
+An `rndc` key `conf` file is story in `etc/rndc.conf` and `bind` will accept `rndc commands for any of the
+services on the IP Address `{{config.bind_local_prefix}}.5` (default `127.9.0.5`).
+
+To see the status of the `bind` run `rndc -c etc/rndc.conf status`
+
+If you edit the file `named/etc/named.conf` you can tell `bind` to reload it with `rndc -c etc/rndc.conf reconfig`. 
+I strongly recommend you run `named-checkconf` on it first.
+
+
 
 ## How do I actually use this?
-
 
 
 ### Use it directly from your client
