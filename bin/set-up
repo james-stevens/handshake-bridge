@@ -1,6 +1,9 @@
 #! /bin/bash
 # (c) Copyright 2020 - James Stevens
 
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+
+
 base="$(dirname $(dirname ${0}))"
 if test "${base}" = "."; then base="$(pwd)"; fi
 
