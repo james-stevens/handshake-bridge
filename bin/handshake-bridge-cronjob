@@ -54,6 +54,7 @@ now="$(date +%Y%m%d_%H%M%S)"
 
 if test ${icann_now_soa} -gt ${icann_old_soa}
 	then
+		echo "ICANN SOA Serial has changed"
 		tmp=$(mktemp ${base}/tmp/icann_XXXXXX)
 		${digcmd} @${icann_root} . axfr | tr $'\t' ' ' | awk 'BEGIN {
 			block["RRSIG"] = "Y"; block["NSEC"] = "Y";
@@ -83,6 +84,7 @@ handshake_now_soa="$(${digcmd} +norec +short @${hsd_server_addr} . soa | awk '{ 
 
 if test ${handshake_now_soa} -gt ${handshake_old_soa}
 	then
+		echo "Handshake SOA Serial has changed"
 		tmp=$(mktemp ${base}/tmp/handshake_XXXXXX)
 		handshake_header "${handshake_now_soa}" > "${tmp}~"
 
