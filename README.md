@@ -75,17 +75,50 @@ thaty often, so I'm sure its fine.
 
 ## How do I actually use this?
 
+
+
+### Use it directly from yuor client
+
 If you have given the resolver service an externally addressable IP Address, all you have to tell your client's to
 use this resolver and you will be able to resolve both ICANN & Hansshake DNS with full DNSSEC support
 
 If you wish to continue to use an external resolver, you can do this in one of two ways
 
-### Forward to this Resolver
+
+
+### Forward your existing resolver to this Resolver
 
 In `bind` you can forward queries to a higer level resolver with the following
 
 	forward only;
 	forwarders { [config.bind_recusive_addr] };
+
+
+
+### Slave the signed ROOT from the IXFR service into your existing resolver
+
+In `bind` you can slave the merged ROOT, tell your bind to trust the local KSK and continue to use your 
+existing `bind` resolver.
+
+- Copy the `trusted-key.inc` file from this directory
+- Run `ip addr add 127.12.12.12/8 dev lo` on the resolver (`bind` is fussy about this)
+- Add this into your resolvers `named.conf`
+
+	include "trusted-key.inc";
+	view root {
+		match-destinations { 127.12.12.12; };
+		zone "." {
+			type slave;
+			file "rootzone.db";
+			notify no;
+			masters { [config.bind_slave_addr]; };
+			};
+		};
+	zone "." { type static-stub; server-addresses { 127.12.12.12; }; };
+
+This will cause your resolver to mirror the merger & signed ROOT zone from the IXFR service and use
+that in preference to the public Internet ROOT data.
+
 
 
 ## More I want to get done
