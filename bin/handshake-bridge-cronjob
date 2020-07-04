@@ -44,7 +44,7 @@ if test "${1}" = "startup"; then icann_root="f.root-servers.net."; fi
 
 function handshake_header()
 {
-	echo ". 86400  IN SOA . . ${1} 1800 900 604800 86400"
+	echo ". 3600  IN SOA . . ${1} 1800 900 604800 86400"
 	echo ". 518400 IN NS ."
 	echo ". 518400 IN A 127.0.0.1"
 }
