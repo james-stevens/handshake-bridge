@@ -64,6 +64,12 @@ if test "${newest_icann}" -a -f "${newest_icann}"
 
 icann_now_soa="$(${digcmd} +norec +short @${icann_root} . soa | awk '{ print $3 }')"
 
+if test -z "${icann_now_soa}"
+	then
+		echo "ERROR: Failed to query for ICANN SOA Serial"
+		exit 1
+	fi
+
 resign="N"
 if test "${1}" = "force"; then resign="Y"; fi
 
@@ -101,6 +107,12 @@ if test "${newest_handshake}" -a -f "${newest_handshake}"
 	fi
 
 handshake_now_soa="$(${digcmd} +norec +short @${hsd_server_addr} . soa | awk '{ print $3 }')"
+
+if test -z "${handshake_now_soa}"
+	then
+		echo "ERROR: Failed to query for Handshake SOA Serial"
+		exit 1
+	fi
 
 if test ${handshake_now_soa} -gt ${handshake_old_soa}
 	then
@@ -216,7 +228,7 @@ rm ${base}/tmp/*
 
 keep_zones_files=5
 cd zones
-handshake_files="$(ls -t handshake_* | tail -n +${keep_zones_files})"
+handshake_files="$(ls -t handshake_* | tail -n +$[${keep_zones_files}+1])"
 icann_files="$(ls -t icann_* | tail -n +${keep_zones_files})"
 if test "${handshake_files}${icann_files}"
 	then
@@ -226,4 +238,5 @@ if test "${handshake_files}${icann_files}"
 	fi
 cd ${base}
 
+echo "Resign Finished"
 } 2>&1 | ${pipecmd}
