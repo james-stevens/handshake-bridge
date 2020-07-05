@@ -4,7 +4,7 @@
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 pipecmd="logger -i -t handshake-bridge-cron"
-if test "${1}" = "startup"; then pipecmd="cat"; fi
+if test "${1}"; then pipecmd="cat"; fi
 
 
 {
@@ -169,6 +169,8 @@ if test "${priority_icann}" = "Y"
 
 {
 handshake_header "$(date +%s)"
+echo ". 3600 in txt \"ICANN SOA\" \"${icann_now_soa}\""
+echo ". 3600 in txt \"Handshake SOA\" \"${handshake_now_soa}\""
 
 grep -v '^. ' ${keep}
 
