@@ -81,17 +81,30 @@ changed_files="${base}/tmp/none"
 if test ${icann_now_soa} -gt ${icann_old_soa}
 	then
 		echo "ICANN SOA Serial has changed"
+
 		tmp=$(mktemp ${base}/tmp/icann_XXXXXX)
-		${digcmd} @${icann_root} . axfr | tr $'\t' ' ' | awk 'BEGIN {
+		${digcmd} @${icann_root} . axfr | awk '{
+			x=$0;
+			gsub("\t"," ",x);
+			while(index(x,"  ")) gsub("  "," ",x);
+			print x }' > ${tmp}
+
+		if ! dnssec-verify -o . ${tmp}
+			then
+				echo "ERROR: ICANN ROOT zone failed DNSSEC verification"
+				rm -f ${base}/tmp/*
+				exit 1
+			fi
+
+		awk 'BEGIN {
 			block["RRSIG"] = "Y"; block["NSEC"] = "Y";
 			block["NSEC3"] = "Y"; block["DNSKEY"] = "Y";
-			block["NSEC3PARAM"] = "Y"; } 
-			{ 
-			if (block[$4] != "Y") print 
-			}' > ${tmp}
+			block["NSEC3PARAM"] = "Y";
+			}
+			{ if (block[$4] != "Y") print }' ${tmp} > ${tmp}.unsiged
 
 		newest_icann="${base}/zones/icann_${now}.txt"
-		mv ${tmp} ${newest_icann}
+		mv ${tmp}.unsiged ${newest_icann}
 		changed_files="${changed_files} ${newest_icann}"
 		resign="Y"
 	fi
