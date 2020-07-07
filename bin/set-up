@@ -113,7 +113,7 @@ ${sudo} ${base}/bin/named-handshake-bridge -t /opt/handshake-bridge/named/ -u no
 tmp="$(mktemp)"
 {
 crontab -l | grep -v handshake-bridge-cronjob
-echo "*/15 * * * * ${base}/bin/handshake-bridge-cronjob"
+echo "*/10 * * * * ${base}/bin/handshake-bridge-cronjob"
 } > ${tmp}
 crontab ${tmp}
 rm -f ${tmp}
