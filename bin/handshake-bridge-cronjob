@@ -51,7 +51,7 @@ if test "${newest_icann}" -a -f "${newest_icann}"
 
 icann_now_soa="$(${digcmd} +norec +short @${icann_root} . soa | awk '{ print $3 }')"
 
-if test -z "${icann_now_soa}"
+if test -z "${icann_now_soa}" -o -z "${icann_old_soa}" -o "${icann_now_soa}" -lt 1
 	then
 		echo "ERROR: Failed to query for ICANN SOA Serial"
 		exit 1
@@ -65,7 +65,7 @@ now="$(date +%Y%m%d_%H%M%S)"
 changed_files="${base}/tmp/none"
 
 
-if test ${icann_now_soa} -gt ${icann_old_soa}
+if test "${icann_now_soa}" -gt "${icann_old_soa}"
 	then
 		echo "ICANN SOA Serial has changed"
 
@@ -108,13 +108,13 @@ if test "${newest_handshake}" -a -f "${newest_handshake}"
 
 handshake_now_soa="$(${digcmd} +norec +short @${hsd_server_addr} . soa | awk '{ print $3 }')"
 
-if test -z "${handshake_now_soa}"
+if test -z "${handshake_now_soa}" -o -z "${handshake_old_soa}" -o "${handshake_now_soa}" -lt 1
 	then
 		echo "ERROR: Failed to query for Handshake SOA Serial"
 		exit 1
 	fi
 
-if test ${handshake_now_soa} -gt ${handshake_old_soa}
+if test "${handshake_now_soa}" -gt "${handshake_old_soa}"
 	then
 		echo "Handshake SOA Serial has changed"
 		tmp=$(mktemp ${base}/tmp/handshake_XXXXXX)
