@@ -46,7 +46,7 @@ icann_old_soa=0
 newest_icann=$(ls ${base}/zones/icann* 2>/dev/null | tail -1)
 if test "${newest_icann}" -a -f "${newest_icann}"
 	then
-		icann_old_soa="$(awk '{ if (($1==".")&&($4=="SOA")) { print $7; exit(0) } }' ${newest_icann})"
+		icann_old_soa="$(awk '{ if (($1==".")&&($4=="SOA")) { print int($7)+0; exit(0) } }' ${newest_icann})"
 	fi
 
 icann_now_soa="$(${digcmd} +norec +short @${icann_root} . soa | awk '{ print $3 }')"
@@ -103,7 +103,7 @@ handshake_old_soa=0
 newest_handshake=$(ls ${base}/zones/handshake* 2>/dev/null | tail -1)
 if test "${newest_handshake}" -a -f "${newest_handshake}"
 	then
-		handshake_old_soa="$(awk '{ if (($1==".")&&($4=="SOA")) { print $7; exit(0) } }' ${newest_handshake})"
+		handshake_old_soa="$(awk '{ if (($1==".")&&($4=="SOA")) { print int($7)+0; exit(0) } }' ${newest_handshake})"
 	fi
 
 handshake_now_soa="$(${digcmd} +norec +short @${hsd_server_addr} . soa | awk '{ print $3 }')"
