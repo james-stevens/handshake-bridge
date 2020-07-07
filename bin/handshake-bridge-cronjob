@@ -24,19 +24,6 @@ cd ${base}
 
 
 
-week=0
-this="$(date +%w)"
-file="${base}/etc/week_num"
-if test -f ${file}; then read week < ${file}; fi
-if ! test "${week}" = "${this}"
-	then
-		rndc -c ${base}/etc/rndc.conf sync -clean
-		echo "${this}" > ${file}
-	fi
-
-
-
-
 
 icann_root="${bind_local_prefix}.3"
 if test "${1}" = "startup"; then icann_root="f.root-servers.net."; fi
