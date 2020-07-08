@@ -102,13 +102,13 @@ if ! ${base}/bin/handshake-bridge-cronjob startup
 
 ln -fns $(which named) ${base}/bin/named-handshake-bridge
 
-if ! ${sudo} named-checkconf -t /opt/handshake-bridge/named
+if ! ${sudo} named-checkconf -t ${base}/named
 	then
 		echo "ERROR: named config failed validation"
 		exit 1
 	fi
 
-${sudo} ${base}/bin/named-handshake-bridge -t /opt/handshake-bridge/named/ -u nobody
+${sudo} ${base}/bin/named-handshake-bridge -t ${base}/named/ -u nobody
 
 tmp="$(mktemp)"
 {
