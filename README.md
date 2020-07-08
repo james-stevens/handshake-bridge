@@ -136,14 +136,14 @@ that in preference to the public Internet ROOT data.
 
 ### DNSSEC Validation of Handshake domains on your desktop
 
-If your desktop PC is running `systemd` (most Linux distro do), then you can configure the `systemd` `stub-resolver` (which run on IP `127.0.0.53`)
-to do DNSSEC validation within your desktop PC. This ensures all the DNS data you see that can be validated has been.
+If your desktop PC is running `systemd` (most Linux distro do), then you can configure the `systemd` `stub-resolver` (which runs on IP `127.0.0.53`)
+to do DNSSEC validation within your desktop PC. This ensures all the DNS data you see, that can be validated, has been.
 
 To do this
 
 1) Put these lines into `/etc/systemd/resolved.conf`
 
-	[Resolve]
+	`[Resolve]`
 	DNS=192.168.1.1
 	DNSSEC=yes
 	Cache=yes
