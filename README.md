@@ -143,10 +143,12 @@ To do this
 
 1) Put these lines into `/etc/systemd/resolved.conf`
 
-	`[Resolve]`
-	DNS=192.168.1.1
-	DNSSEC=yes
-	Cache=yes
+```
+[Resolve]
+DNS=192.168.1.1
+DNSSEC=yes
+Cache=yes
+```
 
 where `192.168.1.1` is the IP Address of your resolver. The resolver does not need to do DNSSEC validation, but it must
 be able to pass DNSSEC data to any client who asks for it.
