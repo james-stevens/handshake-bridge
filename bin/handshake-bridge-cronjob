@@ -4,7 +4,7 @@
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 pipecmd="logger -i -t handshake-bridge-cron"
-if test "${1}"; then pipecmd="cat"; fi
+if test "${1}" || tty -s ; then pipecmd="cat"; fi
 
 
 {
@@ -211,6 +211,7 @@ start="$(awk 'BEGIN { x=systime(); srand(x/604800*13); x = int(x / 604800) * 604
 
 cd ${base}/tmp
 dnssec-signzone -s ${start} -o . -t -R -S -A -H 5 -3 ${nsec3_salt} -K ${base}/keys ROOT
+mv dsset-. ${base}
 cd ${base}
 
 if ! named-checkzone -i local-sibling -k ignore . ${base}/tmp/ROOT.signed
