@@ -246,7 +246,7 @@ if test "${handshake_files}${icann_files}"
 	fi
 cd ${base}
 
-find ${base}/archive/ -type f -mtime +30 -exec rm -v {} ';'
+find ${base}/archive/ -type f -mtime +30 -printf "Removing %p\n" -delete
 
 echo "Resign Finished"
 } 2>&1 | ${pipecmd}
