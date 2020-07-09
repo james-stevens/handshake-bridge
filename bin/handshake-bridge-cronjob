@@ -67,7 +67,7 @@ changed_files="${base}/tmp/none"
 
 if test "${icann_now_soa}" -gt "${icann_old_soa}"
 	then
-		echo "ICANN SOA Serial has changed"
+		echo "ICANN SOA Serial has changed - ${icann_old_soa} -> ${icann_now_soa}"
 
 		tmp=$(mktemp ${base}/tmp/icann_XXXXXX)
 		${digcmd} @${icann_root} . axfr | awk '{
@@ -116,7 +116,7 @@ if test -z "${handshake_now_soa}" -o -z "${handshake_old_soa}" -o "${handshake_n
 
 if test "${handshake_now_soa}" -gt "${handshake_old_soa}"
 	then
-		echo "Handshake SOA Serial has changed"
+		echo "Handshake SOA Serial has changed - ${handshake_old_soa} -> ${handshake_now_soa}"
 		tmp=$(mktemp ${base}/tmp/handshake_XXXXXX)
 		handshake_header "${handshake_now_soa}" > "${tmp}~"
 
@@ -210,7 +210,7 @@ if ! named-checkzone -i local-sibling -k ignore . ${base}/tmp/ROOT
 start="$(awk 'BEGIN { x=systime(); srand(x/604800*13); x = int(x / 604800) * 604800; x += int(rand() * 86400); print strftime("%Y%m%d%H%M%S",x); }')"
 
 cd ${base}/tmp
-dnssec-signzone -s ${start} -o . -t -R -S -A -H 5 -3 ${nsec3_salt} -K ${base}/keys ROOT
+dnssec-signzone -s ${start} -o . -t -P -R -S -A -H 5 -3 ${nsec3_salt} -K ${base}/keys ROOT
 mv dsset-. ${base}
 cd ${base}
 
