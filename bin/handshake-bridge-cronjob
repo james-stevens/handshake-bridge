@@ -210,7 +210,11 @@ if ! named-checkzone -i local-sibling -k ignore . ${base}/tmp/ROOT
 start="$(awk 'BEGIN { x=systime(); srand(x/604800*13); x = int(x / 604800) * 604800; x += int(rand() * 86400); print strftime("%Y%m%d%H%M%S",x); }')"
 
 cd ${base}/tmp
-dnssec-signzone -s ${start} -o . -t -P -R -S -A -H 5 -3 ${nsec3_salt} -K ${base}/keys ROOT
+if ! dnssec-signzone -s ${start} -o . -t -P -R -S -A -H 5 -3 ${nsec3_salt} -K ${base}/keys ROOT
+	then
+		echo "ERROR: dnssec-signzone failed"
+		exit 1
+	fi
 mv dsset-. ${base}
 cd ${base}
 
