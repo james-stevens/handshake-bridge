@@ -65,7 +65,8 @@ echo "nsec3_salt='${salt}'" > etc/nsec3.salt
 chmod 444 etc/nsec3.salt
 
 
-sed "s/MERGED_ADDR/${bind_local_prefix}.5/g" named.conf > named/etc/named.conf
+sed "s/MERGED_ADDR/${bind_local_prefix}.5/g" named.conf | \
+	sed "s/SLAVE_ADDR/${bind_local_prefix}.2/g" named.conf > named/etc/named.conf
 chmod 444 named/etc/named.conf
 
 
