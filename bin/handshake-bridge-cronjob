@@ -74,7 +74,7 @@ if test "${icann_now_soa}" -gt "${icann_old_soa}"
 			x=$0;
 			gsub("\t"," ",x);
 			while(index(x,"  ")) gsub("  "," ",x);
-			print x }' > ${tmp}
+			print x }' | sort > ${tmp}
 
 		if ! dnssec-verify -o . ${tmp}
 			then
@@ -118,6 +118,7 @@ if test "${handshake_now_soa}" -gt "${handshake_old_soa}"
 	then
 		echo "Handshake SOA Serial has changed - ${handshake_old_soa} -> ${handshake_now_soa}"
 		tmp=$(mktemp ${base}/tmp/handshake_XXXXXX)
+
 		handshake_header "${handshake_now_soa}" > "${tmp}~"
 
 		${hsd_rpc} dumpzone ${tmp} > /dev/null 2>&1
