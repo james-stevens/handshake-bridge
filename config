@@ -30,7 +30,7 @@ bind_local_prefix="127.9.0"
 # if you don't want any of these services available externally, use a 127.0.0.0/8 address
 # NOTE: Unlike most Linux apps, `bind` can't use an IP unless it has been explicitly assigned to an interface
 
-# The Rsolver Service
+# The Resolver Service
 bind_recusive_addr="192.168.1.181"
 
 # The IXFR merged & signed ROOT service
