@@ -9,7 +9,7 @@ priority_icann="Y"
 
 
 # IP Address to query for Handshake ROOT SOA Serial
-# i.e `hsd` server address `--ns-hotst <addr>`
+# i.e `hsd` server address `--ns-host <addr>`
 hsd_server_addr="127.0.0.9"
 
 
