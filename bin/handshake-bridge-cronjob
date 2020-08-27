@@ -91,19 +91,17 @@ if test "${icann_now_soa}" -gt "${icann_old_soa}"
 			while(index(x,"  ")) gsub("  "," ",x);
 			print x }' | sort > ${tmp}
 		
-		{
-		if ! named-checkzone -i local-sibling -k ignore . ${tmp}
-			then
-				echo "ERROR: ICANN file failed checks"
-				rm -vf ${tmp}
-				exit 1
-			fi
-		} | grep -v 'has no address records'
-
 		if ! test -s ${tmp}
 			then
 				echo "ERROR: ICANN axfr failed"
-				rm -fv ${tmp}
+				rm -fv ${base}/tmp/*
+				exit 1
+			fi
+
+		if ! named-checkzone -q -i local-sibling -n ignore -k ignore . ${tmp}
+			then
+				echo "ERROR: ICANN file failed checks"
+				rm -fv ${base}/tmp/*
 				exit 1
 			fi
 
@@ -122,7 +120,7 @@ if test "${icann_now_soa}" -gt "${icann_old_soa}"
 			{ if (block[$4] != "Y") print }' ${tmp} > ${tmp}.unsiged
 
 		newest_icann="${base}/zones/icann_${now}.txt"
-		mv ${tmp}.unsiged ${newest_icann}
+		mv -v ${tmp}.unsiged ${newest_icann}
 		changed_files="${changed_files} ${newest_icann}"
 		resign="Y"
 	fi
@@ -134,7 +132,7 @@ newest_handshake=$(ls ${base}/zones/handshake* 2>/dev/null | tail -1)
 if test "${newest_handshake}" -a ! -s "${newest_handshake}"
 	then
 		echo "ERROR: Handshake newest file is empty"
-		rm -vf "${newest_icann}"
+		rm -vf "${newest_handshake}" ${changed_files}
 		exit 1
 	fi
 	
@@ -144,7 +142,7 @@ if test "${newest_handshake}" -a -s "${newest_handshake}"
 		if test -z "${handshake_old_soa}" -o "${handshake_old_soa}" -lt 1
 			then
 				echo "ERROR: Handshake ${newest_handshake} has not SOA"
-				rm -vf "${newest_handshake}"
+				rm -vf "${newest_handshake}" ${changed_files}
 				exit 1
 			fi
 	fi
@@ -154,6 +152,7 @@ handshake_now_soa="$(${digcmd} +norec +short @${hsd_server_addr} . soa | awk '{ 
 if test -z "${handshake_now_soa}" -o "${handshake_now_soa}" -lt 1
 	then
 		echo "ERROR: Failed to query for Handshake SOA Serial"
+		rm -vf "${newest_handshake}" ${changed_files}
 		exit 1
 	fi
 
@@ -167,31 +166,28 @@ if test "${handshake_now_soa}" -gt "${handshake_old_soa}"
 		${hsd_rpc} dumpzone ${tmp} > /dev/null 2>&1
 
 		x=0
-		while ! test -s ${tmp}
+		while test -f ${tmp}~ -a ! -s ${tmp}
 			do
 				echo -n "."
 				x=$[${x}+1]
-				if test ${x} -gt 180
+				if test ${x} -gt 300
 					then
-						rm -fv ${base}/tmp/*
 						echo ""
-						echo "ERROR: RPC dumpzone to ${tmp} Failed"
-						rm -vf ${changed_files}
+						echo "ERROR: RPC dumpzone to ${tmp} Timed-out"
+						ls -l ${tmp}*
+						rm -fv ${base}/tmp/* ${changed_files}
 						exit 1
 					fi
 				sleep 1
 			done
 
 		echo ""
-		{
-		if ! named-checkzone -i local-sibling -k ignore . ${tmp}
+		if ! named-checkzone -q -i local-sibling -n ignore -k ignore . ${tmp}
 			then
-				echo "ERROR: Handshake dump file ${tmp} failed check"
-				rm -fv ${tmp}
+				rm -fv ${changed_files} ${base}/tmp/*
 				exit 1
 			fi
-		} | grep -v 'has no address records'
-			
+
 		newest_handshake="${base}/zones/handshake_${now}.txt"
 		mv ${tmp} ${newest_handshake}
 		changed_files="${changed_files} ${newest_handshake}"
@@ -243,6 +239,7 @@ awk 'BEGIN {
 
 } > ${base}/tmp/ROOT
 
+ls -l ${base}/tmp/ROOT
 
 if test -s ${base}/tmp/dups
 	then
@@ -250,30 +247,31 @@ if test -s ${base}/tmp/dups
 		rm -fv ${base}/tmp/dups
 	fi
 
-{
-if ! named-checkzone -i local-sibling -k ignore . ${base}/tmp/ROOT 
+
+if ! named-checkzone -i local-sibling -k ignore . ${base}/tmp/ROOT >/dev/null 2>&1
 	then
 		echo "ERROR: Merged ROOT zone failed validation check"
 		rm -vf ${changed_files}
 		exit 1
 	fi
-} | grep -v 'has no address records'
 
+ls -l ${base}/tmp/ROOT
 
 . ${base}/etc/nsec3.salt
 
-start="$(awk 'BEGIN { x=systime(); srand(x/604800*13); x = int(x / 604800) * 604800; x += int(rand() * 86400); print strftime("%Y%m%d%H%M%S",x); }')"
+start="$(awk 'BEGIN { x=systime(); srand(x/604800*13); x = (int(x / 604800)-1) * 604800; x += int(rand() * 86400); print strftime("%Y%m%d%H%M%S",x); }')"
 
 cd ${base}/tmp
 if ! dnssec-signzone -s ${start} -o . -t -P -R -S -A -H 5 -3 ${nsec3_salt} -K ${base}/keys ROOT
 	then
 		echo "ERROR: dnssec-signzone failed"
+		rm -vf ${changed_files}
 		exit 1
 	fi
 mv dsset-. ${base}
 cd ${base}
 
-{
+
 if ! named-checkzone -i local-sibling -k ignore . ${base}/tmp/ROOT.signed
 	then
 		echo "ERROR: Merged & Signed ROOT zone failed validation check"
@@ -286,7 +284,6 @@ if ! named-checkzone -i local-sibling -k ignore . ${base}/tmp/ROOT.signed
 				rndc -c ${base}/etc/rndc.conf reload . in root
 			fi
 	fi
-} | grep -v 'has no address records'
 
 rm ${base}/tmp/*
 
