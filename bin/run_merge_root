@@ -1,0 +1,12 @@
+#! /bin/sh
+
+base="$(dirname $(dirname ${0}))"
+
+cd ${base}
+
+exec ${base}/bin/merge_root \
+	-r ${base}/etc/rndc.conf \
+	-T ${base}/tmp \
+	-D ${base}/named/zones/ROOT.signed \
+	-K ${base}/keys 2>&1 \
+	| logger -t merge_root

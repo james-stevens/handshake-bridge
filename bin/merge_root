@@ -1,0 +1,427 @@
+#! /usr/bin/python3 -u
+
+import argparse
+import subprocess
+import tempfile
+import os
+import time
+import random
+import datetime
+from pathlib import Path
+
+DNSSEC_RRS = {
+    "RRSIG": True,
+    "NSEC": True,
+    "NSEC3": True,
+    "DNSKEY": True,
+    "NSEC3PARAM": True
+}
+
+parser = argparse.ArgumentParser(
+    description='Merge & sign Handhsake & ICANN ROOT zone data')
+parser.add_argument("-H",
+                    '--hns-ip',
+                    help='Handshake Server IP',
+                    default="127.0.0.9")
+parser.add_argument("-I",
+                    '--icann-ip',
+                    help='ICANN Server IP',
+                    default="127.9.0.3")
+parser.add_argument("-D",
+                    '--dest-signed',
+                    help='Destination for signed file',
+                    default="/opt/named/zones/ROOT.signed")
+parser.add_argument("-T",
+                    '--tmp-dir',
+                    help='TMP directory',
+                    default="/tmp")
+parser.add_argument("-R",
+                    '--rpc-call',
+                    help='Path to RPC program',
+                    default="/opt/hs-client/bin/hsd-rpc")
+parser.add_argument("-d",
+                    '--debug',
+                    help='Extra output - debug mode',
+                    action="store_true")
+parser.add_argument("-P",
+                    '--handshake-priority',
+                    help='Give priority to dupicate name in Handshake ROOT',
+                    action="store_true")
+parser.add_argument("-K",
+                    '--keys-dir',
+                    help='Keys Directory',
+                    default="/tmp/keys")
+parser.add_argument("-y",
+                    '--cycle-time',
+                    help='Time to wait before next cycle',
+                    default=300, type=int)
+parser.add_argument("-r",
+                    '--rndc-conf',
+                    help='RNDC Config File',
+                    default="/etc/rndc.conf")
+args = parser.parse_args()
+
+
+def base_hns(file_desc, soa):
+    """ Write fake ROOT apex RRs to {file_desc} using soa serial {soa} """
+    file_desc.write(
+        ". 3600 IN SOA . . {soa} 1800 900 604800 86400\n".format(soa=soa))
+    file_desc.write(". 518400 IN NS .\n")
+    file_desc.write(". 86400 in a 127.0.0.1\n")
+
+
+def check_file(desc, file):
+    """ Run named-checkzone on ROOT zone file {file}, version type = {desc}
+        return boolean = pass or fail """
+
+    if subprocess.call(
+        ["named-checkzone", "-i", "local-sibling", "-k", "ignore", ".", file],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL) != 0:
+        print("= ERROR: named-checkzone failed on {file}".format(file=file))
+        os.rename(file, file.split("_")[0] + ".named-checkzone-failed")
+        return False
+
+    print("= named-checkzone {name} in {file} is OK".format(name=desc,
+                                                            file=file))
+    return True
+
+
+def get_hns_to_file():
+    """ Get latest Handshake ROOT zone data to tmp file, return filename """
+    print("= Handshake: Reloading")
+    filename = None
+    with tempfile.NamedTemporaryFile(suffix=".dns~",
+                                     dir=args.tmp_dir,
+                                     mode="w",
+                                     prefix="hns_",
+                                     delete=False) as file_desc:
+        base_hns(file_desc, 1)
+        filename = file_desc.name[:-1]
+
+    if filename is None:
+        return None
+
+    subprocess.call([args.rpc_call, "dumpzone", filename],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL)
+
+    # pylint: disable=unused-variable
+    for loop in range(1, 300):
+        if os.path.isfile(filename):
+            print("= dumpzone for Handshake took {loop} seconds".format(
+                loop=loop))
+            return filename
+        time.sleep(1)
+
+    Path(filename).unlink(missing_ok=True)
+    Path(filename + "~").unlink(missing_ok=True)
+    return None
+
+
+def dummy_get_hns_to_file():
+    """ Dummy for get latest Handshake ROOT zone data to tmp file
+        return filename """
+
+    print("= Handshake: Dummy Reloading")
+    os.symlink("/tmp/hns_data", "/tmp/hns.dns")
+    return "/tmp/hns.dns"
+
+
+def get_icann_to_file(server):
+    """ Get latest ICANN ROOT zone data to tmp file, return filename """
+    print("= ICANN: Reloading")
+    file_desc = tempfile.NamedTemporaryFile(suffix=".dns",
+                                            dir=args.tmp_dir,
+                                            mode="w",
+                                            prefix="icann_",
+                                            delete=False)
+    filename = file_desc.name
+    cmd = [
+        "dig", "+nocmd", "+nocomments", "+nostats", "-t", "axfr", "@" + server,
+        "."
+    ]
+    if subprocess.call(cmd, stdout=file_desc) != 0:
+        print("= ERROR: dig/axrfr failed on ICANN zone")
+        Path(filename).unlink(missing_ok=True)
+        return None
+
+    cmd = ["dnssec-verify", "-o", ".", filename]
+    if subprocess.call(cmd) != 0:
+        Path(filename).unlink(missing_ok=True)
+        return None
+
+    return filename
+
+
+class RootZone:
+    """ Maintain a copy of ICANN or Handshake ROOT zone data """
+
+    # pylint: disable=too-many-instance-attributes
+    def __init__(self, server, is_hns=False):
+        self.data = {}
+        self.soa = 0
+        self.server = server
+        self.is_hns = is_hns
+        if is_hns:
+            self.desc = "Handshake"
+        else:
+            self.desc = "ICANN"
+        self.new_soa = None
+        self.new_data = None
+        self.merge_data = None
+        self.merge_soa = None
+        self.file = None
+        self.have_new_data = False
+
+    def clear_update_data(self):
+        self.merge_data = None
+        self.merge_soa = None
+        self.new_data = None
+        self.new_soa = None
+        self.have_new_data = False
+
+    def get_soa_serial(self):
+        """ Get & return current SOA Serial for this ROOT,
+            or None if failed """
+
+        line = None
+        with subprocess.Popen(
+            ["dig", "+short", "+norec", "@" + self.server, "-t", "soa", "."],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT) as proc:
+            line = proc.stdout.read()
+        if line is not None:
+            return int(line.split()[2])
+        return None
+
+    def load_zone_from_file(self):
+
+        if not check_file(self.desc, self.file):
+            return False
+
+        self.new_data = {}
+
+        with open(self.file, "r") as file_desc:
+            while line := file_desc.readline():
+                items = line.split()
+                if items[0] != "." and items[3] not in DNSSEC_RRS:
+                    if items[0] not in self.new_data:
+                        self.new_data[items[0]] = [line]
+                    else:
+                        self.new_data[items[0]].append(line)
+
+        Path(self.file).unlink(missing_ok=True)
+        self.file = None
+
+        sanity_len = len(self.data)
+        if sanity_len is not None and sanity_len > 0:
+            sanity_len = sanity_len - (sanity_len / 10)
+        else:
+            sanity_len = 0
+
+        if len(self.new_data) > sanity_len:
+            self.have_new_data = True
+            self.merge_data = self.new_data
+            return True
+
+        print(
+            "= ERROR: Sanity check fail on {file}, {new} nto higher than {old}"
+            .format(file=self.file, new=len(self.new_data), old=sanity_len))
+
+        self.new_data = None
+        return False
+
+    def reload_zone_data(self):
+        self.have_new_data = False
+
+        if self.is_hns:
+            # self.file = dummy_get_hns_to_file()
+            self.file = get_hns_to_file()
+        else:
+            self.file = get_icann_to_file(self.server)
+
+        if self.file is None:
+            return False
+
+        return self.load_zone_from_file()
+
+    def check_has_new(self):
+        self.clear_update_data()
+        self.new_soa = self.get_soa_serial()
+        if args.debug:
+            print("= {name} old={old} new={new}".format(name=self.desc,
+                                                    old=self.soa,
+                                                    new=self.new_soa))
+        if self.new_soa is None:
+            return None
+
+        if self.new_soa <= self.soa:
+            self.merge_data = self.data
+            self.merge_soa = self.soa
+            return False
+
+        if not self.reload_zone_data():
+            return None
+
+        self.merge_data = self.new_data
+        self.merge_soa = self.new_soa
+        print("= {name} has {num} rows".format(name=self.desc,
+                                               num=len(self.new_data)))
+        return True
+
+    def remove_merge_dup(self, priority_list):
+        for name in priority_list:
+            if name in self.merge_data:
+                print("= Deleting duplicate {name} in {desc}".format(
+                    name=name, desc=self.desc))
+                del self.merge_data[name]
+
+    def write_names_to_file(self, file_desc):
+        if self.merge_data is None:
+            print("= ERROR: No {name} merge data".format(name=self.desc))
+            return
+
+        file_desc.write(". in txt \"{desc}\" \"{soa}\"\n".format(
+            desc=self.desc, soa=self.merge_soa))
+        for name in self.merge_data:
+            for item in self.merge_data[name]:
+                file_desc.write(item)
+
+    def data_updated(self):
+        if not self.have_new_data:
+            return
+        self.data = self.new_data
+        self.soa = self.new_soa
+        self.clear_update_data()
+        print("= Updated data for {name} to {soa}".format(name=self.desc,
+                                                          soa=self.soa))
+
+
+def count_file_lines(filename):
+    num = 0
+    with open(filename, "r") as file_desc:
+        while file_desc.readline():
+            num = num + 1
+    return num
+
+
+def update_failed(reason, merge_file, icann, hns):
+    icann.merge_data = None
+    icann.merge_soa = None
+    hns.merge_data = None
+    hns.merge_soa = None
+    Path(merge_file).unlink(missing_ok=True)
+    print(reason)
+
+
+def update_check(icann, hns):
+    has_new_icann = icann.check_has_new()
+    has_new_hns = hns.check_has_new()
+
+    if has_new_icann is None or has_new_hns is None:
+        return None
+
+    if not (has_new_icann or has_new_hns):
+        return None
+
+    if args.handshake_priority:
+        icann.remove_merge_dup(hns.merge_data)
+    else:
+        hns.remove_merge_dup(icann.merge_data)
+
+    merged_unsigned = None
+    with tempfile.NamedTemporaryFile(suffix=".dns",
+                                     dir=args.tmp_dir,
+                                     mode="w",
+                                     prefix="both_",
+                                     delete=False) as file_desc:
+        base_hns(file_desc, hns.merge_soa + icann.merge_soa)
+        icann.write_names_to_file(file_desc)
+        hns.write_names_to_file(file_desc)
+        merged_unsigned = file_desc.name
+
+    if merged_unsigned is None:
+        return update_failed("ERROR: FAiled to write merged/unsigned",
+                             merged_unsigned, icann, hns)
+
+    if not check_file("Merged/Unsigned", merged_unsigned):
+        return update_failed("ERROR: Merged/Unsigned Failed named-checkzone",
+                             merged_unsigned, icann, hns)
+
+    all_names = {}
+    with open(merged_unsigned, "r") as file_desc:
+        while line := file_desc.readline():
+            name = line.split()[0]
+            if name != ".":
+                all_names[name] = "Y"
+
+    if len(all_names) < len(hns.merge_data) + len(icann.merge_data):
+        return update_failed(
+            "ERROR: merged file is too short {merge} < ({icann} + {hns})".
+            format(merge=len(all_names),
+                   hns=len(hns.merge_data),
+                   icann=len(icann.merge_data)), merged_unsigned, icann, hns)
+
+    print("= PASSED: Ready to sign {file}".format(file=merged_unsigned))
+    return merged_unsigned
+
+
+def sign_merged_zone(unsigned_file, nsec3_salt):
+    week = int(time.time() / 604800)
+    random.seed(week * 13)
+    last_week = datetime.datetime.fromtimestamp(
+        ((week - 1) * 604800) + random.randint(0, 86400),
+        datetime.timezone.utc)
+    start_dt = last_week.strftime("%Y%m%d%H%M%S")
+    cmd = [
+        "dnssec-signzone", "-s", start_dt, "-o", ".", "-tRSA", "-H", "5", "-3",
+        nsec3_salt, "-K", args.keys_dir, unsigned_file
+    ]
+    ret = subprocess.call(cmd)
+    Path(unsigned_file).unlink(missing_ok=True)
+    signed_file = unsigned_file + ".signed"
+
+    if ret != 0:
+        Path(signed_file).unlink(missing_ok=True)
+        return False
+
+    print("= Merged successfully signed")
+
+    if os.path.isfile(args.dest_signed):
+        old_num = count_file_lines(args.dest_signed)
+        new_num = count_file_lines(signed_file)
+        sanity = old_num - (old_num / 10)
+        if new_num < sanity:
+            print(
+                "ERROR: merged/signed failed sanity check ({new} < {sanity})".
+                format(new=new_num, sanity=sanity))
+            Path(signed_file).unlink(missing_ok=True)
+            return False
+
+    os.rename(signed_file, args.dest_signed)
+    cmd = ["rndc", "-c", args.rndc_conf, "reload", ".", "in", "root"]
+    subprocess.call(cmd)
+    return True
+
+
+seed = (time.time() + os.getpid()) * 13
+random.seed(str(seed))
+gbl_nsec3_salt = "{:010X}".format(random.randint(0, 0xffffffffff))
+seed = random.randint(0, 0xffffffffff)
+
+gbl_icann = RootZone(args.icann_ip)
+gbl_hns = RootZone(args.hns_ip, is_hns=True)
+while True:
+
+    if (gbl_unsigned_file := update_check(gbl_icann, gbl_hns)) is not None:
+        if sign_merged_zone(gbl_unsigned_file, gbl_nsec3_salt):
+            gbl_icann.data_updated()
+            gbl_hns.data_updated()
+            print("====================================================")
+    else:
+        gbl_icann.clear_update_data()
+        gbl_hns.clear_update_data()
+        print("= No update")
+
+    time.sleep(args.cycle_time)
