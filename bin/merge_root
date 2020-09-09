@@ -4,6 +4,7 @@ import argparse
 import subprocess
 import tempfile
 import os
+import platform
 import time
 import random
 import datetime
@@ -39,6 +40,10 @@ parser.add_argument("-R",
                     '--rpc-call',
                     help='Path to RPC program',
                     default="/opt/hs-client/bin/hsd-rpc")
+parser.add_argument("-i",
+                    '--ident',
+                    help='Identication for this merger',
+                    default=platform.node())
 parser.add_argument("-d",
                     '--debug',
                     help='Extra output - debug mode',
@@ -68,6 +73,7 @@ def base_hns(file_desc, soa):
         ". 3600 IN SOA . . {soa} 1800 900 604800 86400\n".format(soa=soa))
     file_desc.write(". 518400 IN NS .\n")
     file_desc.write(". 86400 in a 127.0.0.1\n")
+    file_desc.write(". 86400 in txt \"HOST\" \"{name}\"\n".format(name=args.ident))
 
 
 def check_file(desc, file):
