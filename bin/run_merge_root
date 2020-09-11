@@ -5,7 +5,7 @@ base="$(dirname $(dirname ${0}))"
 cd ${base}
 
 exec ${base}/bin/merge_root \
-	-i "HSD-1" \
+	-Y 1 -i "HSD-1" \
 	-r ${base}/etc/rndc.conf \
 	-T ${base}/tmp \
 	-D ${base}/named/zones/ROOT.signed \
