@@ -3,7 +3,6 @@
 
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
-
 base="$(dirname $(dirname ${0}))"
 if test "${base}" = "."; then base="$(pwd)"; fi
 
@@ -39,8 +38,8 @@ ${sudo} mount -o bind /dev/log ${base}/named/dev/log
 date +%w > etc/week_num
 
 
-dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -r /dev/urandom -L 86400 -f KSK -3 .
-dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -r /dev/urandom -L 86400 -3 .
+dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -L 86400 -f KSK -3 .
+dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -L 86400 -3 .
 
 
 # `bind` is a fussy bitch, it won't listen on an address unless its assigned :(
@@ -55,10 +54,10 @@ done
 
 
 awk '/ 257 / { $8="\"" _ $8; 
-	printf "trusted-keys {\n\t\".\" %s\";\n};\n",substr($0,index($0," 257 ")) 
-	}' keys/*.key > named/etc/trusted-keys.inc
+	printf "trust-anchors {\n\t\".\" static-key %s\";\n};\n",substr($0,index($0," 257 ")) 
+	}' keys/*.key > named/etc/trust-anchors.inc
 
-chmod 444 named/etc/trusted-keys.inc
+chmod 444 named/etc/trust-anchors.inc
 
 salt="$(dd if=/dev/urandom count=6 bs=1 2>/dev/null | hexdump | awk '{ print $2 $3 $4 }')"
 echo "nsec3_salt='${salt}'" > etc/nsec3.salt
@@ -93,28 +92,19 @@ awk '/^#/&&!/named.conf/&&!/of rndc.conf/ {
 	}' etc/rndc.conf > named/etc/rndc.inc
 chmod 444 named/etc/rndc.inc
 
-
-if ! ${base}/bin/handshake-bridge-cronjob startup
-	then
-		echo "ERROR: Failed to create merged ROOT zone"
-		exit 1
-	fi
-
+touch ${base}/named/zones/ROOT.signed
 
 ln -fns $(which named) ${base}/bin/named-handshake-bridge
 
-if ! ${sudo} named-checkconf -t ${base}/named
+if ! ${sudo} named-checkconf -t ${base}/named -c /etc/named.conf
 	then
 		echo "ERROR: named config failed validation"
 		exit 1
 	fi
 
-${sudo} ${base}/bin/named-handshake-bridge -t ${base}/named/ -u nobody
+# Create merged ROOT for the first time so bind will start-up
+${base}/bin/run_merge_root -y 0 -I 192.5.5.241
 
-tmp="$(mktemp)"
-{
-crontab -l | grep -v handshake-bridge-cronjob
-echo "*/10 * * * * ${base}/bin/handshake-bridge-cronjob"
-} > ${tmp}
-crontab ${tmp}
-rm -f ${tmp}
+${sudo} ${base}/bin/named-handshake-bridge -t ${base}/named/ -u nobody -c /etc/named.conf
+
+${base}/bin/run_merge_root > /tmp/run_merge_root.log 2>&1 &

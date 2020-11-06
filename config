@@ -31,10 +31,10 @@ bind_local_prefix="127.9.0"
 # NOTE: Unlike most Linux apps, `bind` can't use an IP unless it has been explicitly assigned to an interface
 
 # The Resolver Service
-bind_recusive_addr="192.168.1.181"
+bind_recusive_addr="192.168.1.141"
 
 # The IXFR merged & signed ROOT service
-bind_slave_addr="192.168.1.182"
+bind_slave_addr="192.168.1.142"
 
 # IP Address that has external access for mirroring the ICANN ROOT zone locally
-bind_mirror_addr="192.168.1.183"
+bind_mirror_addr="192.168.1.143"

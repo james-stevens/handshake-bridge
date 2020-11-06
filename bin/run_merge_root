@@ -4,7 +4,7 @@ base="$(dirname $(dirname ${0}))"
 
 cd ${base}
 
-exec ${base}/bin/merge_root \
+exec ${base}/bin/merge_root $* \
 	-Y 1 -i "$(hostname)" \
 	-r ${base}/etc/rndc.conf \
 	-T ${base}/tmp \

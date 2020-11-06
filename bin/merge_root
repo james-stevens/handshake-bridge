@@ -1,9 +1,11 @@
 #! /usr/bin/python3 -u
+""" Maintain merger ROOT zone blending Handshake & ICANN ROOT data """
 
 import argparse
 import subprocess
 import tempfile
 import os
+import sys
 import platform
 import time
 import random
@@ -32,10 +34,7 @@ parser.add_argument("-D",
                     '--dest-signed',
                     help='Destination for signed file',
                     default="/opt/named/zones/ROOT.signed")
-parser.add_argument("-T",
-                    '--tmp-dir',
-                    help='TMP directory',
-                    default="/tmp")
+parser.add_argument("-T", '--tmp-dir', help='TMP directory', default="/tmp")
 parser.add_argument("-R",
                     '--rpc-call',
                     help='Path to RPC program',
@@ -43,7 +42,8 @@ parser.add_argument("-R",
 parser.add_argument("-Y",
                     '--sysid',
                     help='Identication number for this merger (1-9)',
-                    default=1, type=int)
+                    default=1,
+                    type=int)
 parser.add_argument("-i",
                     '--ident',
                     help='Identication for this merger',
@@ -63,7 +63,8 @@ parser.add_argument("-K",
 parser.add_argument("-y",
                     '--cycle-time',
                     help='Time to wait before next cycle',
-                    default=300, type=int)
+                    default=300,
+                    type=int)
 parser.add_argument("-r",
                     '--rndc-conf',
                     help='RNDC Config File',
@@ -73,11 +74,12 @@ args = parser.parse_args()
 
 def base_hns(file_desc):
     """ Write fake ROOT apex RRs to {file_desc} using soa serial {soa} """
-    file_desc.write(
-        ". 3600 IN SOA . . {soa} 1800 900 604800 86400\n".format(soa=str(int(time.time()/10)*10+args.sysid)))
+    file_desc.write(". 3600 IN SOA . . {soa} 1800 900 604800 86400\n".format(
+        soa=str(int(time.time() / 10) * 10 + args.sysid)))
     file_desc.write(". 518400 IN NS .\n")
     file_desc.write(". 86400 in a 127.0.0.1\n")
-    file_desc.write(". 86400 in txt \"HOST\" \"{name}\"\n".format(name=args.ident))
+    file_desc.write(
+        ". 86400 in txt \"HOST\" \"{name}\"\n".format(name=args.ident))
 
 
 def check_file(desc, file):
@@ -185,6 +187,7 @@ class RootZone:
         self.have_new_data = False
 
     def clear_update_data(self):
+        """ Update is complete, so clear down """
         self.merge_data = None
         self.merge_soa = None
         self.new_data = None
@@ -206,6 +209,7 @@ class RootZone:
         return None
 
     def load_zone_from_file(self):
+        """ Load zone data from file {self.file} and sanity check it """
 
         if not check_file(self.desc, self.file):
             return False
@@ -243,6 +247,7 @@ class RootZone:
         return False
 
     def reload_zone_data(self):
+        """ Initiate zone reload """
         self.have_new_data = False
 
         if self.is_hns:
@@ -257,12 +262,13 @@ class RootZone:
         return self.load_zone_from_file()
 
     def check_has_new(self):
+        """ check if either SOA Serial (ICANN/Handshake) has changed """
         self.clear_update_data()
         self.new_soa = self.get_soa_serial()
         if args.debug:
             print("= {name} old={old} new={new}".format(name=self.desc,
-                                                    old=self.soa,
-                                                    new=self.new_soa))
+                                                        old=self.soa,
+                                                        new=self.new_soa))
         if self.new_soa is None:
             return None
 
@@ -281,6 +287,7 @@ class RootZone:
         return True
 
     def remove_merge_dup(self, priority_list):
+        """ de-dup ROOT data """
         for name in priority_list:
             if name in self.merge_data:
                 print("= Deleting duplicate {name} in {desc}".format(
@@ -288,6 +295,7 @@ class RootZone:
                 del self.merge_data[name]
 
     def write_names_to_file(self, file_desc):
+        """ Write out merged ROOT zone to file descriptor {file_desc} """
         if self.merge_data is None:
             print("= ERROR: No {name} merge data".format(name=self.desc))
             return
@@ -299,6 +307,7 @@ class RootZone:
                 file_desc.write(item)
 
     def data_updated(self):
+        """ Check for clear-down """
         if not self.have_new_data:
             return
         self.data = self.new_data
@@ -309,6 +318,7 @@ class RootZone:
 
 
 def count_file_lines(filename):
+    """ count the number of lines in text file {filename} """
     num = 0
     with open(filename, "r") as file_desc:
         while file_desc.readline():
@@ -317,6 +327,7 @@ def count_file_lines(filename):
 
 
 def update_failed(reason, merge_file, icann, hns):
+    """ Clear down after an update failure """
     icann.merge_data = None
     icann.merge_soa = None
     hns.merge_data = None
@@ -326,6 +337,7 @@ def update_failed(reason, merge_file, icann, hns):
 
 
 def update_check(icann, hns):
+    """ Start an update check & (optionally) merge cycle """
     has_new_icann = icann.check_has_new()
     has_new_hns = hns.check_has_new()
 
@@ -378,6 +390,7 @@ def update_check(icann, hns):
 
 
 def sign_merged_zone(unsigned_file, nsec3_salt):
+    """ sign the merged ROOT zone in {unsigned_file} """
     week = int(time.time() / 604800)
     random.seed(week * 13)
     last_week = datetime.datetime.fromtimestamp(
@@ -434,4 +447,7 @@ while True:
         gbl_hns.clear_update_data()
         print("= No update")
 
-    time.sleep(args.cycle_time)
+    if args.cycle_time == 0:
+        sys.exit(0)
+    else:
+        time.sleep(args.cycle_time)
