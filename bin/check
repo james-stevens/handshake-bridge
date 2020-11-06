@@ -1,6 +1,9 @@
 #! /bin/sh
 
-. ./config
+base="$(dirname $(dirname ${0}))"
+if test "${base}" = "."; then base="$(pwd)"; fi
+
+. ${base}/config
 
 echo ""
 
