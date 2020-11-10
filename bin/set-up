@@ -1,6 +1,8 @@
 #! /bin/bash
 # (c) Copyright 2020 - James Stevens
 
+f_root="192.5.5.241"
+
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 base="$(dirname $(dirname ${0}))"
@@ -15,15 +17,15 @@ if ! test $(id -u) = 0
 	fi
 
 ${sudo} umount ${base}/named/dev/log 2>/dev/null
-${sudo} killall -q named-handshake-bridge
+${sudo} killall -q named-handshake-bridge merge_root
 
 # ncpu=$(lscpu | awk '/^CPU\(s\)/ { print $NF }')
 
 dirs="zones archive keys tmp named etc"
 ${sudo} rm -rf ${dirs}
 
-mkdir ${dirs}
-mkdir named/dev named/etc named/var named/var/named named/zones
+mkdir -p ${dirs}
+mkdir -p named/dev named/etc named/var named/var/named named/zones
 
 chmod 700 keys
 
@@ -53,7 +55,7 @@ do
 done
 
 
-awk '/ 257 / { $8="\"" _ $8; 
+awk '/ 257 / { $8="\"" _ $8;
 	printf "trust-anchors {\n\t\".\" static-key %s\";\n};\n",substr($0,index($0," 257 ")) 
 	}' keys/*.key > named/etc/trust-anchors.inc
 
@@ -103,8 +105,20 @@ if ! ${sudo} named-checkconf -t ${base}/named -c /etc/named.conf
 	fi
 
 # Create merged ROOT for the first time so bind will start-up
-${base}/bin/run_merge_root -y 0 -I 192.5.5.241
+echo "Making first cut"
+${base}/bin/run_merge_root -y 0 -I ${f_root}
 
-${sudo} ${base}/bin/named-handshake-bridge -t ${base}/named/ -u nobody -c /etc/named.conf
 
+out="${base}/named/zones/icann.db"
+tmp=$(mktemp ${base}/tmp/icann_XXXXXX)
+dig @${f_root} . axfr > ${tmp}
+named-compilezone -i local-sibling -k ignore -F raw -o - . ${tmp} > ${out}
+chown nobody: ${out}
+rm -f ${tmp}
+
+
+echo "Starting bind"
+${sudo} ${base}/bin/named-handshake-bridge -4 -t ${base}/named/ -u nobody -c /etc/named.conf
+
+echo "Starting merge process"
 ${base}/bin/run_merge_root > /tmp/run_merge_root.log 2>&1 &
