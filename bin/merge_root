@@ -73,7 +73,11 @@ args = parser.parse_args()
 
 
 def base_hns(file_desc):
-    """ Write fake ROOT apex RRs to {file_desc} using soa serial {soa} """
+    """ Write fake ROOT apex RRs to {file_desc} using UNIXTIME as soa serial
+    	NOTE: last two digits of the SOA Serial uniquely identifies this server
+    		This means an IXFR from two different merge server can not be confused
+    		so long as their {args.sysid} is different.
+    """
     file_desc.write(". 3600 IN SOA . . {soa} 1800 900 604800 86400\n".format(
         soa=str(int(time.time() / 10) * 10 + args.sysid)))
     file_desc.write(". 518400 IN NS .\n")
@@ -430,7 +434,7 @@ def sign_merged_zone(unsigned_file, nsec3_salt):
 
 seed = (time.time() + os.getpid()) * 13
 random.seed(str(seed))
-gbl_nsec3_salt = "{:010X}".format(random.randint(0, 0xffffffffff))
+GBL_NSEC3_SALT = "{:010X}".format(random.randint(0, 0xffffffffff))
 seed = random.randint(0, 0xffffffffff)
 
 gbl_icann = RootZone(args.icann_ip)
@@ -438,7 +442,7 @@ gbl_hns = RootZone(args.hns_ip, is_hns=True)
 while True:
 
     if (gbl_unsigned_file := update_check(gbl_icann, gbl_hns)) is not None:
-        if sign_merged_zone(gbl_unsigned_file, gbl_nsec3_salt):
+        if sign_merged_zone(gbl_unsigned_file, GBL_NSEC3_SALT):
             gbl_icann.data_updated()
             gbl_hns.data_updated()
             print("====================================================")
