@@ -1,5 +1,5 @@
 #! /usr/bin/python3 -u
-""" Maintain merger ROOT zone blending Handshake & ICANN ROOT data """
+""" Maintain merged ROOT zone blending Handshake & ICANN ROOT data """
 
 import argparse
 import subprocess
