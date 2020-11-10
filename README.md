@@ -1,7 +1,8 @@
 # handshake-bridge
 ## Bridging Handshake &amp; ICANN TLDs
 
-The purpose of this project is to provide a bridge between the existing (ICANN maintained) public DNS infrastructure and the Handshake project
+The purpose of this project is to provide a bridge between the existing (ICANN maintained)
+public DNS infrastructure and the Handshake project
 while providing at least the same level of security as the public infrastrusture.
 
 To do this it will
@@ -10,11 +11,11 @@ To do this it will
 - Sign them with your own set of keys (KSK & ZSK)
 - Provide an AXFR/IXFR Service & Resolver Service of the merged, signed ROOT zone
 
-You can then tell any DNSSEC aware DNS software to trust your own KSK (by giving it the public key), use this ROOT service / resolver
-and all the ICANN & Handshake data will correctly validate.
+You can then tell any DNSSEC aware DNS software to trust your own KSK (by giving it the public key or DS record(s)),
+use this ROOT service / resolver, and all the ICANN & Handshake data will correctly validate.
 
 You can do this by either using the resolver service directly, or by running a DNSSEC-aware stubb resolver on your desktop
-which has been told to trust your own KSK's Public Key.
+which has been told to trust your own KSK's Public Key. The `systemd` stub resolver supports this.
 
 
 To use this project, you **must** apply the `hsd` `dumpzone` patch included as `diffs/dumpzone.diff`
@@ -33,9 +34,9 @@ There is a `README` in the `diffs` directory which gives more information.
 - Ensure you have the full `bind` package installed, including `named`, `rndc`, `rndc-confgen`, `dnssec-keygen` & `dnssec-signzone`
 
 
-**NOTE:** Until XFR is working in `hsd`, the transfer of handshake data uses `hsd-rpc dumpzone <file>` which equires shared file space.
-This can be done in containers, but is little more painful
-than just running on the same host. So for the time being running `hsd` and this on the same host is probably the easiest option.
+**NOTE:** Until XFR is working in `hsd`, the transfer of handshake data uses `hsd-rpc dumpzone <file>` which requires shared file space.
+This can be done in containers, but is little more painful than just running on the same host.
+So for the time being running `hsd` and this on the same host is probably the easiest option.
 
 
 
@@ -45,7 +46,12 @@ than just running on the same host. So for the time being running `hsd` and this
 - Edit the file `config` to meet your needs
 - Run `./bin/setup`
 
-If the `set-up` runs OK you should now have `bind` running, as the process `named-handshake-bridge`, providing four separate DNS services. They are
+If the `set-up` runs OK you should now have two new background processes running.
+`bind` running as the process `named-handshake-bridge`, providing four separate DNS services,
+and the python script `bin/merge_root` also running in the background, merging the two ROOT zones
+and feeding the signed, merged ROOT to `bind.
+
+`bind` provides four services, They are
 - A local mirror of the ICANN ROOT zone
 - A authoritative master with the signed merged ROOT zone, which only offers AXFR support
 - A authoritative master with the signed merged ROOT zone, which can offer AXFR & IXFR support
@@ -57,9 +63,7 @@ These run on the IP Addresses you gave in the `config` as well as `127.0.0.0/8` 
 - `{{config.bind_local_prefix}}.3` -> ICANN Mirror
 - `{{config.bind_local_prefix}}.5` -> AXFR Only Merged Root
 
-
-
-If this is running correctly, you can run the program `./bin/check` and it will run a few basic checks.
+If this is running correctly, you can run the program `./bin/check` and it will run a few basic checks as well as querying these services.
 
 The output you should see is the SOA RR for each of these four services. Three of the hour should give the same result, 
 which is the SOA RR of the merged & locally signed ROOT zone and one will give the ICANN ROOT SOA RR.
@@ -67,13 +71,10 @@ which is the SOA RR of the merged & locally signed ROOT zone and one will give t
 
 You should be able to run `set-up` either as `root` or an ordinary user (I tested it as an ordinary user), but some operations on some platforms
 require `root` permission, so I have preceded these with `sudo`. If you don't use `sudo`, just modify the `set-up`
-script to whatever you do use.
+script to whatever root escalation you do use.
 
-`set-up` will install a `cron` job which runs every 15 minutes to execute `${base}/bin/handshake-bridge-cronjob`. This
-polls the SOA serial of both ROOT zones to check if either needs refreshing. This is not ideal, but neither change
-that often, so I'm sure its fine.
-
-Once `hsd` has AXFR support and the handshake SOA Serial only rolls when the data is updated, this can be improved
+Once `hsd` has AXFR support and the handshake SOA Serial only rolls when the data is updated, this script will automatically
+be better!
 
 
 ## Using `rndc` to monitor the services
