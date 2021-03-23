@@ -8,42 +8,42 @@ if test "${base}" = "."; then base="$(pwd)"; fi
 
 . ${base}/config
 
-sudo=""
 if ! test $(id -u) = 0
 	then	
-		sudo="sudo"
+		echo "Usage: sudo bin/set-up"
+		exit 1
 	fi
 
-${sudo} umount ${base}/named/dev/log 2>/dev/null
-${sudo} killall -q named-icann-slave named-handshake-bridge merge_root
+umount ${base}/named/dev/log 2>/dev/null
+killall -q named-icann-slave named-handshake-bridge merge_root
 sleep 2
-while ${sudo} killall -q -9 named-icann-slave named-handshake-bridge merge_root
+while killall -q -9 named-icann-slave named-handshake-bridge merge_root
 	do
 		sleep 1
 	done
 
-dirs="named etc"
-${sudo} rm -rf ${dirs}
+dirs="named icann etc"
+rm -rf ${dirs}
 
 keys="named/keys"
 mkdir -p ${dirs}
 mkdir -p named/dev named/etc named/var named/var/named \
 	named/data named/data/zones named/data/tmp ${keys}
 
-mkdir -p icann icann/etc icann/var icann/var/named icann/zones
+mkdir -p icann/etc icann/var icann/var/named icann/zones
 
-${sudo} cp -a /dev/random /dev/urandom /dev/null /dev/zero named/dev
-${sudo} cp -a /dev/random /dev/urandom /dev/null /dev/zero icann/dev
+cp -a /dev/random /dev/urandom /dev/null /dev/zero named/dev
+cp -a /dev/random /dev/urandom /dev/null /dev/zero icann/dev
 
 chown root:nobody ${keys}
 chmod 750 ${keys}
 
 chmod 770 named/data/zones icann/zones
-${sudo} chgrp $(id -g nobody) named/data/zones icann/zones
-${sudo} chown nobody: named/var/named icann/var/named
+chgrp $(id -g nobody) named/data/zones icann/zones
+chown nobody: named/var/named icann/var/named
 
 touch named/dev/log
-${sudo} mount -o bind /dev/log ${base}/named/dev/log
+mount -o bind /dev/log ${base}/named/dev/log
 
 
 if test -d key-store
@@ -55,8 +55,11 @@ if test -d key-store
 	fi
 chown root:nobody ${keys}/*
 chmod 440 ${keys}/*
+
 dnssec-dsfromkey -12 -a SHA-384 $(grep -l ' DNSKEY 257 ' ${keys}/*.key) > dsset-.
 
+dnssec-dsfromkey -2 $(grep -l ' DNSKEY 257 ' ${keys}/*.key) | awk '{
+	printf "trust-anchors { . static-ds %d %d %d \"%s\"; };\n",$4,$5,$6,$7 }' > named/etc/trust-anchors.inc
 
 # `bind` is a fussy bitch, it won't listen on an address unless its assigned :(
 for x in 1 2 3 5
@@ -64,7 +67,7 @@ do
 	addr="${bind_local_prefix}.${x}"
 	if ! ip addr show lo | grep -q "inet ${addr}/"
 		then
-			${sudo} ip addr add ${addr}/8 dev lo
+			ip addr add ${addr}/8 dev lo
 		fi
 done
 
@@ -106,12 +109,12 @@ chmod 444 named/etc/rndc.inc
 ln -fns $(which named) ${base}/bin/named-handshake-bridge
 ln -fns $(which named) ${base}/bin/named-icann-slave
 
-if ! ${sudo} named-checkconf -t ${base}/named -c /etc/named.conf
+if ! named-checkconf -t ${base}/named -c /etc/named.conf
 	then
 		echo "ERROR: named config failed validation"
 		exit 1
 	fi
-if ! ${sudo} named-checkconf -t ${base}/icann -c /etc/named.conf
+if ! named-checkconf -t ${base}/icann -c /etc/named.conf
 	then
 		echo "ERROR: icann config failed validation"
 		exit 1
@@ -131,8 +134,8 @@ rm -f ${txt}
 
 
 echo "Starting bind"
-${sudo} ${base}/bin/named-handshake-bridge -4 -t ${base}/named/ -u nobody -c /etc/named.conf
-${sudo} ${base}/bin/named-icann-slave -4 -t ${base}/icann/ -u nobody -c /etc/named.conf
+${base}/bin/named-handshake-bridge -4 -t ${base}/named/ -u nobody -c /etc/named.conf
+${base}/bin/named-icann-slave -4 -t ${base}/icann/ -u nobody -c /etc/named.conf
 
 echo "Config NSEC3"
 rndc -c etc/rndc.conf signing -nsec3param 1 1 1 00 .
@@ -158,7 +161,7 @@ while ps ax | grep -q '[n]amed-handshake-bridge'
 	done
 
 echo "Restart"
-${sudo} ${base}/bin/named-handshake-bridge -4 -t ${base}/named/ -u nobody -c /etc/named.conf
+${base}/bin/named-handshake-bridge -4 -t ${base}/named/ -u nobody -c /etc/named.conf
 sleep 1
 while ! test -f named/data/zones/ROOT.merged.signed.jnl
 	do
@@ -180,7 +183,7 @@ while ps ax | grep -q '[n]amed-handshake-bridge'
 	done
 
 echo "Restart"
-${sudo} ${base}/bin/named-handshake-bridge -4 -t ${base}/named/ -u nobody -c /etc/named.conf
+${base}/bin/named-handshake-bridge -4 -t ${base}/named/ -u nobody -c /etc/named.conf
 sleep 2
 
 
