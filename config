@@ -13,6 +13,9 @@ priority_icann="Y"
 hsd_server_addr="127.0.0.9"
 
 
+# unique ID for this host - defaults to hostname
+hostname="HOST-1"
+
 # Path to the HSD-RPC client
 hsd_rpc="/opt/hs-client/bin/hsd-rpc"
 
@@ -34,7 +37,11 @@ bind_local_prefix="127.9.0"
 bind_recusive_addr="192.168.1.141"
 
 # The IXFR merged & signed ROOT service
-bind_slave_addr="192.168.1.142"
+bind_signed_addr="192.168.1.142"
 
 # IP Address that has external access for mirroring the ICANN ROOT zone locally
 bind_mirror_addr="192.168.1.143"
+
+
+# Slaves of the ROOT zone
+slave_masters=192.168.1.199

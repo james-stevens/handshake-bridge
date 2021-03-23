@@ -21,7 +21,7 @@ DNSSEC_RRS = {
 }
 
 parser = argparse.ArgumentParser(
-    description='Merge & sign Handhsake & ICANN ROOT zone data')
+    description='Merge & install Handhsake & ICANN ROOT zone data')
 parser.add_argument("-H",
                     '--hns-ip',
                     help='Handshake Server IP',
@@ -31,9 +31,9 @@ parser.add_argument("-I",
                     help='ICANN Server IP',
                     default="127.9.0.3")
 parser.add_argument("-D",
-                    '--dest-signed',
-                    help='Destination for signed file',
-                    default="/opt/named/zones/ROOT.signed")
+                    '--dest-merged',
+                    help='Destination for merged file',
+                    default="/opt/named/data/zones/ROOT.merged")
 parser.add_argument("-T", '--tmp-dir', help='TMP directory', default="/tmp")
 parser.add_argument("-R",
                     '--rpc-call',
@@ -56,6 +56,9 @@ parser.add_argument("-P",
                     '--handshake-priority',
                     help='Give priority to dupicate name in Handshake ROOT',
                     action="store_true")
+parser.add_argument("-B",
+                    '--base-root',
+                    help='Create a base ROOT zone here')
 parser.add_argument("-K",
                     '--keys-dir',
                     help='Keys Directory',
@@ -72,18 +75,22 @@ parser.add_argument("-r",
 args = parser.parse_args()
 
 
-def base_hns(file_desc):
+def base_hns(file_desc,soa = (int(time.time() / 10) * 10 + args.sysid)):
     """ Write fake ROOT apex RRs to {file_desc} using UNIXTIME as soa serial
-    	NOTE: last two digits of the SOA Serial uniquely identifies this server
-    		This means an IXFR from two different merge server can not be confused
-    		so long as their {args.sysid} is different.
+        NOTE: last two digits of the SOA Serial uniquely identifies this server
+            This means an IXFR from two different merge server can not be confused
+            so long as their {args.sysid} is different.
     """
-    file_desc.write(". 3600 IN SOA . . {soa} 1800 900 604800 86400\n".format(
-        soa=str(int(time.time() / 10) * 10 + args.sysid)))
+    file_desc.write(f". 3600 IN SOA . . {soa} 1800 900 604800 86400\n")
     file_desc.write(". 518400 IN NS .\n")
     file_desc.write(". 86400 in a 127.0.0.1\n")
-    file_desc.write(
-        ". 86400 in txt \"HOST\" \"{name}\"\n".format(name=args.ident))
+    file_desc.write(f". 86400 in txt \"HOST\" \"{args.ident}\"\n")
+
+
+if args.base_root is not None:
+    with open(args.base_root,"w") as fd:
+        base_hns(fd,int(time.time()-10000))
+    sys.exit(0)
 
 
 def check_file(desc, file):
@@ -244,7 +251,7 @@ class RootZone:
             return True
 
         print(
-            "= ERROR: Sanity check fail on {file}, {new} nto higher than {old}"
+            "= ERROR: Sanity check fail on {file}, {new} not higher than {old}"
             .format(file=self.file, new=len(self.new_data), old=sanity_len))
 
         self.new_data = None
@@ -301,11 +308,11 @@ class RootZone:
     def write_names_to_file(self, file_desc):
         """ Write out merged ROOT zone to file descriptor {file_desc} """
         if self.merge_data is None:
-            print("= ERROR: No {name} merge data".format(name=self.desc))
+            print(f"= ERROR: No {self.desc} merge data")
             return
 
-        file_desc.write(". in txt \"{desc}\" \"{soa}\"\n".format(
-            desc=self.desc, soa=self.merge_soa))
+        file_desc.write(f". 86400 in txt \"{self.desc}\" \"{self.merge_soa}\"\n")
+
         for name in self.merge_data:
             for item in self.merge_data[name]:
                 file_desc.write(item)
@@ -317,8 +324,7 @@ class RootZone:
         self.data = self.new_data
         self.soa = self.new_soa
         self.clear_update_data()
-        print("= Updated data for {name} to {soa}".format(name=self.desc,
-                                                          soa=self.soa))
+        print(f"= Updated data for {self.desc} to {self.soa}")
 
 
 def count_file_lines(filename):
@@ -356,7 +362,7 @@ def update_check(icann, hns):
     else:
         hns.remove_merge_dup(icann.merge_data)
 
-    merged_unsigned = None
+    merged_file = None
     with tempfile.NamedTemporaryFile(suffix=".dns",
                                      dir=args.tmp_dir,
                                      mode="w",
@@ -365,18 +371,18 @@ def update_check(icann, hns):
         base_hns(file_desc)
         icann.write_names_to_file(file_desc)
         hns.write_names_to_file(file_desc)
-        merged_unsigned = file_desc.name
+        merged_file = file_desc.name
 
-    if merged_unsigned is None:
-        return update_failed("ERROR: FAiled to write merged/unsigned",
-                             merged_unsigned, icann, hns)
+    if merged_file is None:
+        return update_failed("ERROR: Failed to write merged/unsigned",
+                             merged_file, icann, hns)
 
-    if not check_file("Merged/Unsigned", merged_unsigned):
+    if not check_file("Merged/Unsigned", merged_file):
         return update_failed("ERROR: Merged/Unsigned Failed named-checkzone",
-                             merged_unsigned, icann, hns)
+                             merged_file, icann, hns)
 
     all_names = {}
-    with open(merged_unsigned, "r") as file_desc:
+    with open(merged_file, "r") as file_desc:
         while line := file_desc.readline():
             name = line.split()[0]
             if name != ".":
@@ -387,62 +393,41 @@ def update_check(icann, hns):
             "ERROR: merged file is too short {merge} < ({icann} + {hns})".
             format(merge=len(all_names),
                    hns=len(hns.merge_data),
-                   icann=len(icann.merge_data)), merged_unsigned, icann, hns)
+                   icann=len(icann.merge_data)), merged_file, icann, hns)
 
-    print("= PASSED: Ready to sign {file}".format(file=merged_unsigned))
-    return merged_unsigned
+    print(f"= PASSED: Ready to install {merged_file}")
+    return merged_file
 
 
-def sign_merged_zone(unsigned_file, nsec3_salt):
-    """ sign the merged ROOT zone in {unsigned_file} """
-    week = int(time.time() / 604800)
-    random.seed(week * 13)
-    last_week = datetime.datetime.fromtimestamp(
-        ((week - 1) * 604800) + random.randint(0, 86400),
-        datetime.timezone.utc)
-    start_dt = last_week.strftime("%Y%m%d%H%M%S")
-    cmd = [
-        "dnssec-signzone", "-s", start_dt, "-o", ".", "-tRSA", "-H", "5", "-3",
-        nsec3_salt, "-K", args.keys_dir, unsigned_file
-    ]
-    ret = subprocess.call(cmd)
-    Path(unsigned_file).unlink(missing_ok=True)
-    signed_file = unsigned_file + ".signed"
+def install_merged_zone(merged_file):
+    """ install the merged ROOT zone in {merged_file} """
 
-    if ret != 0:
-        Path(signed_file).unlink(missing_ok=True)
-        return False
-
-    print("= Merged successfully signed")
-
-    if os.path.isfile(args.dest_signed):
-        old_num = count_file_lines(args.dest_signed)
-        new_num = count_file_lines(signed_file)
+    if os.path.isfile(args.dest_merged):
+        old_num = count_file_lines(args.dest_merged)
+        new_num = count_file_lines(merged_file)
         sanity = old_num - (old_num / 10)
         if new_num < sanity:
-            print(
-                "ERROR: merged/signed failed sanity check ({new} < {sanity})".
-                format(new=new_num, sanity=sanity))
-            Path(signed_file).unlink(missing_ok=True)
+            print(f"ERROR: merged file failed sanity check ({new_num} < {sanity})")
+            Path(merged_file).unlink(missing_ok=True)
             return False
 
-    os.rename(signed_file, args.dest_signed)
-    cmd = ["rndc", "-c", args.rndc_conf, "reload", ".", "in", "root"]
+    os.rename(merged_file, args.dest_merged)
+    os.chmod(args.dest_merged,0o666)
+    cmd = ["rndc", "-c", args.rndc_conf, "reload", "." ]
     subprocess.call(cmd)
     return True
 
 
 seed = (time.time() + os.getpid()) * 13
 random.seed(str(seed))
-GBL_NSEC3_SALT = "{:010X}".format(random.randint(0, 0xffffffffff))
 seed = random.randint(0, 0xffffffffff)
 
 gbl_icann = RootZone(args.icann_ip)
 gbl_hns = RootZone(args.hns_ip, is_hns=True)
 while True:
 
-    if (gbl_unsigned_file := update_check(gbl_icann, gbl_hns)) is not None:
-        if sign_merged_zone(gbl_unsigned_file, GBL_NSEC3_SALT):
+    if (gbl_merged_file := update_check(gbl_icann, gbl_hns)) is not None:
+        if install_merged_zone(gbl_merged_file):
             gbl_icann.data_updated()
             gbl_hns.data_updated()
             print("====================================================")

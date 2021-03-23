@@ -3,11 +3,16 @@
 base="$(dirname $(dirname ${0}))"
 
 cd ${base}
+. config
 
 exec ${base}/bin/merge_root $* \
 	-Y 1 -i "$(hostname)" \
+	-I ${bind_local_prefix}.3 \
 	-r ${base}/etc/rndc.conf \
-	-T ${base}/tmp \
-	-D ${base}/named/zones/ROOT.signed \
-	-K ${base}/keys 2>&1 \
-	| logger -t merge_root
+	-T ${base}/named/data/tmp \
+	-D ${base}/named/data/zones/ROOT.merged \
+	-K ${base}/keys \
+	\
+	-R ${base}/bin/quick_dump -y 0
+
+	# 2>&1 | logger -t merge_root

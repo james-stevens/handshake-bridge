@@ -1,0 +1,8 @@
+#! /bin/sh
+
+{
+zcat quick.dns.gz >> ${2}~
+chown nobody: ${2}~
+chmod 640 ${2}~
+mv -v ${2}~ ${2}
+} 2>&1 | logger -t quick_dump -i

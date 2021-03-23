@@ -1,8 +1,6 @@
 #! /bin/bash
 # (c) Copyright 2020 - James Stevens
 
-f_root="192.5.5.241"
-
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 
 base="$(dirname $(dirname ${0}))"
@@ -17,31 +15,47 @@ if ! test $(id -u) = 0
 	fi
 
 ${sudo} umount ${base}/named/dev/log 2>/dev/null
-${sudo} killall -q named-handshake-bridge merge_root
+${sudo} killall -q named-icann-slave named-handshake-bridge merge_root
+sleep 2
+while ${sudo} killall -q -9 named-icann-slave named-handshake-bridge merge_root
+	do
+		sleep 1
+	done
 
-# ncpu=$(lscpu | awk '/^CPU\(s\)/ { print $NF }')
-
-dirs="zones archive keys tmp named etc"
+dirs="named etc"
 ${sudo} rm -rf ${dirs}
 
+keys="named/keys"
 mkdir -p ${dirs}
-mkdir -p named/dev named/etc named/var named/var/named named/zones
+mkdir -p named/dev named/etc named/var named/var/named \
+	named/data named/data/zones named/data/tmp ${keys}
 
-chmod 700 keys
+mkdir -p icann icann/etc icann/var icann/var/named icann/zones
 
-chmod 770 named/zones
-${sudo} chgrp $(id -g nobody) named/zones
-${sudo} chown nobody: named/var/named
+${sudo} cp -a /dev/random /dev/urandom /dev/null /dev/zero named/dev
+${sudo} cp -a /dev/random /dev/urandom /dev/null /dev/zero icann/dev
 
-${sudo} cp -a /dev/zero /dev/random /dev/urandom /dev/null named/dev
+chown root:nobody ${keys}
+chmod 750 ${keys}
+
+chmod 770 named/data/zones icann/zones
+${sudo} chgrp $(id -g nobody) named/data/zones icann/zones
+${sudo} chown nobody: named/var/named icann/var/named
+
 touch named/dev/log
 ${sudo} mount -o bind /dev/log ${base}/named/dev/log
 
-date +%w > etc/week_num
 
-
-dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -L 86400 -f KSK -3 .
-dnssec-keygen -K keys -a "${signing_algorithm}" -n ZONE -L 86400 -3 .
+if test -d key-store
+    then
+		cp -a key-store.* ${keys}
+	else
+		dnssec-keygen -K ${keys} -a "${signing_algorithm}" -n ZONE -L 86400 -f KSK -3 .
+		dnssec-keygen -K ${keys} -a "${signing_algorithm}" -n ZONE -L 86400 -3 .
+	fi
+chown root:nobody ${keys}/*
+chmod 440 ${keys}/*
+dnssec-dsfromkey -12 -a SHA-384 $(grep -l ' DNSKEY 257 ' ${keys}/*.key) > dsset-.
 
 
 # `bind` is a fussy bitch, it won't listen on an address unless its assigned :(
@@ -57,34 +71,29 @@ done
 
 awk '/ 257 / { $8="\"" _ $8;
 	printf "trust-anchors {\n\t\".\" static-key %s\";\n};\n",substr($0,index($0," 257 ")) 
-	}' keys/*.key > named/etc/trust-anchors.inc
+	}' ${keys}/*.key > named/etc/trust-anchors.inc
 
 chmod 444 named/etc/trust-anchors.inc
 
-salt="$(dd if=/dev/urandom count=6 bs=1 2>/dev/null | hexdump | awk '{ print $2 $3 $4 }')"
-echo "nsec3_salt='${salt}'" > etc/nsec3.salt
-chmod 444 etc/nsec3.salt
 
+export signed_addr="${bind_local_prefix}.2"
+export signed_all="${signed_addr}; ${bind_signed_addr}"
+export merged_addr="${bind_local_prefix}.5"
+export merged_all="${merged_addr}"
+export recursive_all="${bind_local_prefix}.1; ${bind_recusive_addr}"
+export mirror_all="${bind_local_prefix}.3; ${bind_mirror_addr}"
+export slave_masters bind_signed_addr
 
-sed "s/{{MERGED_ADDR}}/${bind_local_prefix}.5/g" named.conf | \
-	sed "s/{{SLAVE_ADDR}}/${bind_local_prefix}.2/g" > named/etc/named.conf
-chmod 444 named/etc/named.conf
+awk '{ 
+	for (a in ENVIRON) gsub("{{" _ a _ "}}",ENVIRON[a]);
+	print
+	}' template_named.conf > named/etc/named.conf
 
+awk '{ 
+	for (a in ENVIRON) gsub("{{" _ a _ "}}",ENVIRON[a]);
+	print
+	}' template_icann.conf > icann/etc/named.conf
 
-merged_addr="${bind_local_prefix}.5"
-
-{
-echo "acl merged_acl    { ${merged_addr}; };"
-echo "acl recursive_acl { ${bind_local_prefix}.1; ${bind_recusive_addr}; };"
-echo "acl slave_acl     { ${bind_local_prefix}.2; ${bind_slave_addr}; };"
-echo "acl mirror_acl    { ${bind_local_prefix}.3; ${bind_mirror_addr}; };"
-echo ""
-echo "masters merged_masters    { ${merged_addr}; };"
-echo "masters recursive_masters { ${bind_local_prefix}.1; ${bind_recusive_addr}; };"
-echo "masters slave_masters     { ${bind_local_prefix}.2; ${bind_slave_addr}; };"
-echo "masters mirror_masters    { ${bind_local_prefix}.3; ${bind_mirror_addr}; };"
-} > named/etc/addrs.inc
-chmod 444 named/etc/addrs.inc
 
 
 rndc-confgen -s ${merged_addr} > etc/rndc.conf
@@ -94,31 +103,87 @@ awk '/^#/&&!/named.conf/&&!/of rndc.conf/ {
 	}' etc/rndc.conf > named/etc/rndc.inc
 chmod 444 named/etc/rndc.inc
 
-touch ${base}/named/zones/ROOT.signed
-
 ln -fns $(which named) ${base}/bin/named-handshake-bridge
+ln -fns $(which named) ${base}/bin/named-icann-slave
 
 if ! ${sudo} named-checkconf -t ${base}/named -c /etc/named.conf
 	then
 		echo "ERROR: named config failed validation"
 		exit 1
 	fi
+if ! ${sudo} named-checkconf -t ${base}/icann -c /etc/named.conf
+	then
+		echo "ERROR: icann config failed validation"
+		exit 1
+	fi
 
 # Create merged ROOT for the first time so bind will start-up
-echo "Making first cut"
-${base}/bin/run_merge_root -y 0 -I ${f_root}
+${base}/bin/merge_root -i "${hostname}" -B named/data/zones/ROOT.merged
 
 
-out="${base}/named/zones/icann.db"
-tmp=$(mktemp ${base}/tmp/icann_XXXXXX)
-dig @${f_root} . axfr > ${tmp}
-named-compilezone -i local-sibling -k ignore -F raw -o - . ${tmp} > ${out}
-chown nobody: ${out}
-rm -f ${tmp}
+# Get initial ICANN ROOT from f-root
+txt="icann/zones/icann.txt"
+db="icann/zones/icann.db"
+dig @192.5.5.241 . axfr > ${txt}
+named-compilezone -i local-sibling -k ignore -F raw -o - . ${txt} > ${db}
+chown nobody: ${db}
+rm -f ${txt}
 
 
 echo "Starting bind"
-${sudo} ${base}/bin/named-handshake-bridge -4 -t ${base}/named/ -u nobody -c /etc/named.conf
+${sudo} ${base}/bin/named-handshake-bridge -n 1 -4 -t ${base}/named/ -u nobody -c /etc/named.conf
+${sudo} ${base}/bin/named-icann-slave -4 -t ${base}/icann/ -u nobody -c /etc/named.conf
 
-echo "Starting merge process"
-${base}/bin/run_merge_root > /tmp/run_merge_root.log 2>&1 &
+echo "Config NSEC3"
+rndc -c etc/rndc.conf signing -nsec3param 1 1 1 00 .
+sleep 1
+while rndc -c etc/rndc.conf signing -list . | grep -q "Creating NSEC3 chain"
+	do
+		sleep 1
+	done
+
+echo "Saving"
+rndc -c etc/rndc.conf sync -clean
+while test -f named/data/zones/ROOT.merged.signed.jnl
+	do
+		sleep 1
+	done
+
+
+echo "Stop"
+rndc -c etc/rndc.conf stop
+while ps ax | grep -q '[n]amed-handshake-bridge'
+	do
+		sleep 1
+	done
+
+echo "Restart"
+${sudo} ${base}/bin/named-handshake-bridge -n 1 -4 -t ${base}/named/ -u nobody -c /etc/named.conf
+sleep 1
+while ! test -f named/data/zones/ROOT.merged.signed.jnl
+	do
+		sleep 1
+	done
+
+echo "Save"
+rndc -c etc/rndc.conf sync -clean
+while test -f named/data/zones/ROOT.merged.signed.jnl
+	do
+		sleep 1
+	done
+
+echo "Stop"
+rndc -c etc/rndc.conf stop
+while ps ax | grep -q '[n]amed-handshake-bridge'
+	do
+		sleep 1
+	done
+
+echo "Restart"
+${sudo} ${base}/bin/named-handshake-bridge -n 1 -4 -t ${base}/named/ -u nobody -c /etc/named.conf
+sleep 2
+
+
+# echo "Starting merge process"
+# ${base}/bin/run_merge_root
+# > /tmp/run_merge_root.log 2>&1 &
