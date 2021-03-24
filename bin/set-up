@@ -187,6 +187,5 @@ ${base}/bin/named-handshake-bridge -4 -t ${base}/named/ -u nobody -c /etc/named.
 sleep 2
 
 
-# echo "Starting merge process"
-# ${base}/bin/run_merge_root
-# > /tmp/run_merge_root.log 2>&1 &
+echo "Starting merge process for the first time - this may take 3 to 4 hrs to complete siging"
+${base}/bin/run_merge_root -y 0
